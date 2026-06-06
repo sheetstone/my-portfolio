@@ -4,6 +4,14 @@ import { SHAPE_VERT, SHAPE_FRAG } from './shaders.js';
 const PALETTE = [0x1b3fd4, 0xf4c20d, 0x2f9e57, 0x111111, 0xf3ecdb, 0xe85a1f];
 const TYPES = ['blob', 'leaf', 'flower', 'frond'];
 
+// Original defaults — use sliders to tune
+export const DEFAULT_CONFIG = {
+  far:  { n: 7,  zMin: -24, zMax: -18, rMin: 2.4, rMax: 4.2, minX: 0 },
+  mid:  { n: 12, zMin: -16, zMax: -7,  rMin: 1.0, rMax: 2.4, minX: 0 },
+  near: { n: 5,  zMin: -4,  zMax: -2,  rMin: 1.6, rMax: 3.0, minX: 0 },
+  repR: 4.8, repForce: 0.32, repDecay: 0.88, repClamp: 6,
+};
+
 function mulberry(s) {
   return function () {
     s |= 0;
@@ -48,9 +56,11 @@ function shapeGeo(type, R, seed) {
 
 const baseShapeMat = new THREE.ShaderMaterial({
   side: THREE.DoubleSide,
+  transparent: true,
   uniforms: {
-    uColor: { value: new THREE.Color(0xffffff) },
-    uSeed: { value: 0 },
+    uColor:   { value: new THREE.Color(0xffffff) },
+    uSeed:    { value: 0 },
+    uOpacity: { value: 1.0 },
   },
   vertexShader: SHAPE_VERT,
   fragmentShader: SHAPE_FRAG,
@@ -69,15 +79,32 @@ function makeShape(type, R, colorHex, seed) {
   shadow.position.set(R * 0.06, -R * 0.08, -0.05);
   const grp = new THREE.Group();
   grp.add(shadow, mesh);
+  grp.userData.mesh = mesh; // exposed for opacity control
   return grp;
 }
 
-export function createMovers(scene) {
+export function destroyMovers(movers, scene) {
+  movers.forEach(grp => {
+    scene.remove(grp);
+    const seen = new Set();
+    grp.traverse(obj => {
+      if (obj.geometry && !seen.has(obj.geometry)) {
+        obj.geometry.dispose();
+        seen.add(obj.geometry);
+      }
+      if (obj.material) {
+        (Array.isArray(obj.material) ? obj.material : [obj.material])
+          .forEach(m => m.dispose());
+      }
+    });
+  });
+}
+
+export function createMovers(scene, cfg = DEFAULT_CONFIG) {
   const movers = [];
   let seed = 7;
 
-  // sidesOnly: spawn at |x| > 9 to avoid covering the center cards
-  function scatter(n, zMin, zMax, rMin, rMax, sidesOnly = false) {
+  function scatter({ n, zMin, zMax, rMin, rMax, minX }) {
     for (let i = 0; i < n; i++) {
       const type = TYPES[(seed * 3) % TYPES.length];
       const R = rMin + Math.random() * (rMax - rMin);
@@ -85,16 +112,13 @@ export function createMovers(scene) {
       const grp = makeShape(type, R, col, seed++);
       const z = zMin + Math.random() * (zMax - zMin);
       let xPos;
-      if (sidesOnly) {
+      if (minX > 0) {
         const side = Math.random() < 0.5 ? -1 : 1;
-        // Near layer (z > -8): keep at far edges (|x| ≥ 12)
-        // Mid layer (z ≤ -10): start just outside card zone (|x| ≥ 8)
-        const minX = zMax > -8 ? 12 : 8;
         xPos = side * (minX + Math.random() * 5);
       } else {
-        xPos = (Math.random() - 0.5) * 22;
+        xPos = (Math.random() - 0.5) * 30;
       }
-      grp.position.set(xPos, (Math.random() - 0.5) * 12, z);
+      grp.position.set(xPos, (Math.random() - 0.5) * 17, z);
       grp.rotation.z = Math.random() * 6.28;
       const depth = (z - zMin) / (zMax - zMin);
       grp.userData = {
@@ -108,21 +132,20 @@ export function createMovers(scene) {
         baseY: grp.position.y,
         repelX: 0,
         repelY: 0,
-        // For side-only shapes: sign of baseX so repel can only push outward
-        sideSign: sidesOnly ? Math.sign(xPos) : 0,
       };
       scene.add(grp);
       movers.push(grp);
     }
   }
 
-  scatter(5, -24, -18, 1.8, 3.0);              // far background, free placement
-  scatter(10, -17, -10, 0.8, 1.6, true);      // mid, behind cards, sides only
-  scatter(6,  -6,  -1,  0.8, 1.2, true);      // near foreground, sides only, small
+  scatter(cfg.far);
+  scatter(cfg.mid);
+  scatter(cfg.near);
   return movers;
 }
 
-export function tickMovers(movers, t, mouseWorld) {
+export function tickMovers(movers, t, mouseWorld, cfg = DEFAULT_CONFIG) {
+  const { repR, repForce, repDecay, repClamp } = cfg;
   movers.forEach((g) => {
     const u = g.userData;
     g.rotation.z += u.rot * 0.01;
@@ -131,21 +154,15 @@ export function tickMovers(movers, t, mouseWorld) {
     const dx = g.position.x - mw.x;
     const dy = g.position.y - mw.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const repR = 5.2;
 
     if (dist < repR && dist > 0.01) {
-      const f = Math.pow((repR - dist) / repR, 2) * 0.38;
+      const f = Math.pow((repR - dist) / repR, 2) * repForce;
       u.repelX += (dx / dist) * f;
       u.repelY += (dy / dist) * f;
     }
 
-    // Side shapes: only allow repel to push further outward, not inward past base
-    if (u.sideSign) {
-      u.repelX = Math.max(0, u.repelX * u.sideSign) * u.sideSign;
-    }
-
-    u.repelX = Math.max(-10, Math.min(10, u.repelX)) * 0.88;
-    u.repelY = Math.max(-8,  Math.min(8,  u.repelY)) * 0.88;
+    u.repelX = Math.max(-repClamp, Math.min(repClamp, u.repelX)) * repDecay;
+    u.repelY = Math.max(-repClamp, Math.min(repClamp, u.repelY)) * repDecay;
 
     g.position.x = u.baseX + Math.sin(t * u.swS + u.ph) * u.swA + u.repelX;
     g.position.y = u.baseY + Math.sin(t * u.bobS + u.ph * 1.3) * u.bobA + u.repelY;

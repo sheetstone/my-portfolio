@@ -45,12 +45,13 @@ export const SHAPE_FRAG = `
   varying vec2 vP;
   uniform vec3 uColor;
   uniform float uSeed;
+  uniform float uOpacity;
   ${NOISE}
   void main(){
     vec3 col = uColor;
     float streak = fbm(vP * vec2(0.7, 3.2) + uSeed);
     float mottle = fbm(vP * 2.2 + uSeed * 2.0 + 5.0);
     col *= 1.0 + (streak - 0.5) * 0.13 + (mottle - 0.5) * 0.06;
-    gl_FragColor = vec4(col, 1.);
+    gl_FragColor = vec4(col, uOpacity);
   }
 `;

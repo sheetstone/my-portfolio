@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BG_VERT, BG_FRAG } from './shaders.js';
-import { createMovers, tickMovers } from './shapes.js';
+import { DEFAULT_CONFIG, createMovers, destroyMovers, tickMovers } from './shapes.js';
 import { createFrames, tickFrames } from './frames.js';
 
 export class SceneManager {
@@ -18,6 +18,7 @@ export class SceneManager {
     this._m = new THREE.Vector2();
     this._down = null;
     this._moved = false;
+    this._hoveredShape = null;
 
     this._tick = this._tick.bind(this);
     this._init();
@@ -39,7 +40,12 @@ export class SceneManager {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
     this._createBackground();
-    this.movers = createMovers(this.scene);
+    this.shapeConfig = { ...DEFAULT_CONFIG,
+      far: { ...DEFAULT_CONFIG.far },
+      mid: { ...DEFAULT_CONFIG.mid },
+      near: { ...DEFAULT_CONFIG.near },
+    };
+    this.movers = createMovers(this.scene, this.shapeConfig);
     this.frames = createFrames(this.scene);
 
     this.camState = { x: 0, y: 0, z: 13 };
@@ -100,6 +106,18 @@ export class SceneManager {
           el.style.cursor = h >= 0 ? 'pointer' : 'grab';
         }
       }
+
+      // Shape hover — only foreground shapes (z > card z) get semi-transparent on hover
+      this._m.x = (e.clientX / window.innerWidth) * 2 - 1;
+      this._m.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      this._ray.setFromCamera(this._m, this.camera);
+      const CARD_Z = -8;
+      const fgMeshes = this.movers
+        .filter(g => g.position.z > CARD_Z)
+        .map(g => g.userData.mesh)
+        .filter(Boolean);
+      const shapeHit = this._ray.intersectObjects(fgMeshes)[0];
+      this._hoveredShape = shapeHit ? shapeHit.object.parent : null;
     };
     this._onWheel = (e) => {
       if (this.focused < 0) {
@@ -165,7 +183,19 @@ export class SceneManager {
     const t = this.clock.getElapsedTime();
     this.bg.material.uniforms.uTime.value = t;
 
-    tickMovers(this.movers, t, this.mouseWorld.bind(this));
+    tickMovers(this.movers, t, this.mouseWorld.bind(this), this.shapeConfig);
+
+    // Fade foreground shapes to semi-transparent when hovered
+    const CARD_Z = -8;
+    this.movers.forEach(g => {
+      const mesh = g.userData.mesh;
+      if (!mesh || g.position.z <= CARD_Z) return;
+      const target = g === this._hoveredShape ? 0.25 : 1.0;
+      mesh.material.uniforms.uOpacity.value = this._lerp(
+        mesh.material.uniforms.uOpacity.value, target, 0.12
+      );
+    });
+
     tickFrames(this.frames, t, this.hover, this.focused, this._lerp);
 
     this.camState.x = this._lerp(this.camState.x, this.camWant.x, 0.06);
@@ -187,6 +217,12 @@ export class SceneManager {
 
     this.renderer.render(this.scene, this.camera);
     this._raf = requestAnimationFrame(this._tick);
+  }
+
+  recreateShapes(cfg) {
+    this.shapeConfig = cfg;
+    destroyMovers(this.movers, this.scene);
+    this.movers = createMovers(this.scene, cfg);
   }
 
   resize() {

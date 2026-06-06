@@ -4,6 +4,7 @@ import { PROJECTS } from './data/projects.js';
 import HUD from './components/HUD.jsx';
 import InfoCard from './components/InfoCard.jsx';
 import Loading from './components/Loading.jsx';
+import ShapeControls from './components/ShapeControls.jsx';
 import './App.css';
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
         onBack={handleBack}
       />
       <Loading visible={loading} />
+      <ShapeControls onConfigChange={cfg => sceneRef.current?.recreateShapes(cfg)} />
     </>
   );
 }
