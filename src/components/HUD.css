@@ -1,0 +1,57 @@
+.hud {
+  position: fixed;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.title {
+  top: 30px;
+  left: 34px;
+}
+
+.title h1 {
+  font-weight: 800;
+  font-size: clamp(28px, 5vw, 52px);
+  line-height: 0.92;
+  letter-spacing: -1px;
+  margin: 0;
+  color: var(--cream);
+  text-shadow: 3px 4px 0 rgba(0, 0, 0, 0.22);
+}
+
+.title span {
+  display: block;
+  margin-top: 8px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #f6d36b;
+}
+
+.sig {
+  bottom: 24px;
+  left: 36px;
+  font-family: 'Caveat', cursive;
+  font-size: 34px;
+  color: var(--cream);
+  opacity: 0.92;
+  transform: rotate(-4deg);
+}
+
+.hint {
+  bottom: 26px;
+  right: 34px;
+  text-align: right;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #ffe6c4;
+  opacity: 0.85;
+  line-height: 1.9;
+  transition: opacity 0.4s;
+}
+
+.hint.hidden {
+  opacity: 0;
+}

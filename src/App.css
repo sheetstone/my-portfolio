@@ -1,0 +1,6 @@
+/* Canvas fills the viewport — Three.js sets width/height; CSS positions it */
+#app {
+  position: fixed;
+  inset: 0;
+  display: block;
+}

@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600&display=swap');
+
+:root {
+  --cream: #f3ecdb;
+  --ink: #1c1410;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #a81a14;
+  overflow: hidden;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  color: var(--cream);
+}

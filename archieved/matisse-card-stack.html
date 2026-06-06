@@ -1,0 +1,204 @@
+<!--
+  MATISSE CARD STACK — portfolio prototype
+  ----------------------------------------
+  Your three works are held as a fanned deck (like a hand of cards) over the tapestry field.
+  Hover a card to lift it and spread its neighbours · click to draw it out and read it · Back returns it to the deck.
+
+  ===> EDIT the PROJECTS array (search "EDIT HERE"): title, subtitle, url, image (screenshot URL or null), accent.
+  Two blank "backer" cards sit behind the deck purely for stack depth (matches the sketch's density).
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600&display=swap');
+  :root{ --cream:#f3ecdb; --ink:#1c1410; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#a81a14;overflow:hidden;font-family:'Bricolage Grotesque',sans-serif;color:var(--cream);}
+  #app{position:fixed;inset:0;} canvas{display:block;}
+  .hud{position:fixed;z-index:5;pointer-events:none;}
+  .title{top:30px;left:34px;} .title h1{font-weight:800;font-size:clamp(28px,5vw,52px);line-height:.92;letter-spacing:-1px;margin:0;text-shadow:3px 4px 0 rgba(0,0,0,.22);}
+  .title span{display:block;margin-top:8px;font-weight:600;font-size:12px;letter-spacing:4px;text-transform:uppercase;color:#f6d36b;}
+  .sig{bottom:24px;left:36px;font-family:'Caveat',cursive;font-size:34px;opacity:.92;transform:rotate(-4deg);}
+  .hint{bottom:26px;right:34px;text-align:right;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#ffe6c4;opacity:.85;transition:opacity .4s;line-height:1.9;}
+  .card{position:fixed;z-index:6;left:34px;top:50%;transform:translateY(-50%) translateX(-46px);width:330px;max-width:calc(100vw - 56px);
+    background:var(--cream);color:var(--ink);border-radius:6px;padding:28px;box-shadow:10px 14px 0 rgba(0,0,0,.25);
+    opacity:0;pointer-events:none;transition:opacity .45s ease, transform .45s cubic-bezier(.2,.8,.2,1);}
+  .card.show{opacity:1;transform:translateY(-50%) translateX(0);pointer-events:auto;}
+  .card .idx{font-weight:800;font-size:13px;letter-spacing:2px;color:var(--accent,#1b3fd4);}
+  .card h2{font-weight:800;font-size:34px;line-height:1;margin:8px 0 6px;letter-spacing:-1px;}
+  .card p{font-size:14px;line-height:1.6;color:#5b4f44;margin:0 0 22px;}
+  .row{display:flex;gap:10px;}
+  .btn{flex:1;text-align:center;text-decoration:none;font-weight:800;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:14px;border-radius:4px;cursor:pointer;transition:transform .15s;}
+  .btn:hover{transform:translate(-2px,-2px);}
+  .btn.visit{background:var(--accent,#1b3fd4);color:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.25);}
+  .btn.back{background:transparent;color:var(--ink);border:2px solid rgba(0,0,0,.2);}
+  .loading{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#a81a14;font-weight:800;letter-spacing:5px;text-transform:uppercase;font-size:12px;color:#ffe6c4;transition:opacity .8s;}
+  .loading.hide{opacity:0;pointer-events:none;}
+</style>
+
+<div id="app"></div>
+<div class="hud title"><h1>Your<br>Name</h1><span>Selected Work · MMXXVI</span></div>
+<div class="hud sig">— your signature</div>
+<div class="hud hint" id="hint">hover · lift<br>click · open</div>
+<div class="card" id="card">
+  <div class="idx" id="cIdx">01 / 03</div>
+  <h2 id="cTitle">Project</h2>
+  <p id="cDesc">A short line about the project.</p>
+  <div class="row">
+    <a class="btn visit" id="cVisit" target="_blank" rel="noopener noreferrer">Visit site ↗</a>
+    <a class="btn back" id="cBack">Back to deck</a>
+  </div>
+</div>
+<div class="loading" id="loading">shuffling the deck</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================ EDIT HERE ============================ */
+const PROJECTS = [
+  { title:"Project One",   subtitle:"A live web app on Firebase. Replace with one line on what it does.", url:"https://your-project-one.web.app",   image:null, accent:"#1b3fd4" },
+  { title:"Project Two",   subtitle:"Your second deployed site. Swap in a screenshot and the real URL.",   url:"https://your-project-two.web.app",   image:null, accent:"#2f9e57" },
+  { title:"Project Three", subtitle:"Your third deployed site. Click to draw it out of the deck.",          url:"https://your-project-three.web.app", image:null, accent:"#e8a712" },
+];
+/* ================================================================== */
+
+const NOISE=`float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));vec2 u=f*f*(3.-2.*f);return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p*=2.;a*=.5;}return v;}`;
+
+const app=document.getElementById('app');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xa81a14);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,200);
+camera.position.set(0,-0.2,9);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.75)); renderer.setSize(innerWidth,innerHeight);
+app.appendChild(renderer.domElement);
+
+/* ---- tapestry field ---- */
+const bg=new THREE.Mesh(new THREE.PlaneGeometry(220,150),new THREE.ShaderMaterial({uniforms:{uTime:{value:0}},
+  vertexShader:`varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec2 vP;uniform float uTime;${NOISE}
+  void main(){vec2 p=vP*0.045;float t=uTime*0.025;vec2 g=p+0.18*vec2(fbm(p*1.3+t),fbm(p*1.3-t));
+   vec3 vermilion=vec3(.86,.21,.12),deep=vec3(.62,.11,.10),maroon=vec3(.36,.07,.10),orange=vec3(.90,.40,.13);
+   float bx=smoothstep(-.06,.06,sin(g.x*1.25)),by=smoothstep(-.06,.06,sin(g.y*1.05+.6));
+   vec3 col=mix(mix(maroon,deep,bx),mix(vermilion,orange,bx),by);
+   col*=1.0+(fbm(vP*2.8)-.5)*0.10; col*=0.93+0.07*fbm(vP*0.4);
+   gl_FragColor=vec4(col,1.);}`}));
+bg.position.z=-30; scene.add(bg);
+
+/* ---- a few far drifting Matisse shapes for atmosphere ---- */
+const shapeMat=new THREE.ShaderMaterial({side:THREE.DoubleSide,uniforms:{uColor:{value:new THREE.Color(0xffffff)},uSeed:{value:0}},
+  vertexShader:`varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec2 vP;uniform vec3 uColor;uniform float uSeed;${NOISE}
+  void main(){vec3 c=uColor;c*=1.0+(fbm(vP*vec2(.7,3.2)+uSeed)-.5)*0.13;gl_FragColor=vec4(c,1.);}`});
+function mulberry(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function organic(R,seed){const rnd=mulberry(seed),N=100,pts=[];const h1=rnd()*6.28,h2=rnd()*6.28;
+  for(let i=0;i<N;i++){const a=i/N*6.283;let r=R*(0.45+0.55*Math.abs(Math.sin(a*4+h1)));r+=R*0.05*Math.sin(a*2+h2);
+    pts.push(new THREE.Vector2(Math.cos(a)*r*0.62,Math.sin(a)*r*1.5));}
+  const g=new THREE.ShapeGeometry(new THREE.Shape(pts));g.center();return g;}
+const PAL=[0x111111,0x14224f,0x6e1418,0x8a2a12], shapes=[];
+for(let i=0;i<6;i++){const m=shapeMat.clone();m.uniforms.uColor.value=new THREE.Color(PAL[i%PAL.length]);m.uniforms.uSeed.value=i;
+  const mesh=new THREE.Mesh(organic(2+Math.random()*2,i+3),m);
+  mesh.position.set((Math.random()-0.5)*34,(Math.random()-0.5)*18,-26-Math.random()*4);
+  mesh.rotation.z=Math.random()*6.28;mesh.userData={bx:mesh.position.x,by:mesh.position.y,ph:Math.random()*6.28,sp:0.1+Math.random()*0.2};
+  scene.add(mesh);shapes.push(mesh);}
+
+/* ---- helpers: rounded rect + placeholder screenshot ---- */
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
+function wrap(x,txt,X,Y,max,lh){const w=txt.split(' ');let line='',y=Y;for(const word of w){const t=line+word+' ';if(x.measureText(t).width>max&&line){x.fillText(line,X,y);line=word+' ';y+=lh;}else line=t;}x.fillText(line,X,y);}
+function shot(p){const c=document.createElement('canvas');c.width=720;c.height=520;const x=c.getContext('2d');
+  x.fillStyle='#f7f4ec';x.fillRect(0,0,720,520);x.fillStyle='#e7e2d6';x.fillRect(0,0,720,52);
+  ['#e0564a','#e9b84b','#5aa86a'].forEach((d,k)=>{x.fillStyle=d;x.beginPath();x.arc(30+k*26,26,7,0,7);x.fill();});
+  x.fillStyle=p.accent;x.font='800 46px "Bricolage Grotesque"';x.fillText(p.title,40,250);
+  x.fillStyle='#9a917f';x.font='20px "Bricolage Grotesque"';x.fillText('screenshot goes here',42,292);return new THREE.CanvasTexture(c);}
+
+/* ---- soft shadow texture (shared) ---- */
+const shadowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');
+  const g=x.createRadialGradient(128,128,20,128,128,128);g.addColorStop(0,'rgba(0,0,0,0.5)');g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g;x.fillRect(0,0,256,256);return new THREE.CanvasTexture(c);})();
+
+/* ---- build the fanned deck ---- */
+const W=3,H=4, deck=[], loader=new THREE.TextureLoader();
+function cardFace(p,i){const c=document.createElement('canvas');c.width=600;c.height=800;const x=c.getContext('2d');
+  rr(x,14,14,572,772,30);x.fillStyle='#f6f2e8';x.fill();x.lineWidth=3;x.strokeStyle='rgba(0,0,0,0.12)';x.stroke();
+  x.fillStyle='#e7e2d6';rr(x,44,140,512,372,14);x.fill();
+  x.fillStyle=p.accent;x.font='800 30px "Bricolage Grotesque"';x.fillText('0'+(i+1)+' / 0'+PROJECTS.length,48,108);
+  x.fillStyle='#1c1410';x.font='800 50px "Bricolage Grotesque"';wrap(x,p.title,48,600,510,52);
+  x.fillStyle='#7a7060';x.font='22px "Bricolage Grotesque"';wrap(x,p.subtitle,48,660,500,30);
+  x.fillStyle=p.accent;x.font='800 40px "Caveat"';x.fillText('✶',520,108);return new THREE.CanvasTexture(c);}
+
+function buildDeck(){
+  // backer cards (non-interactive) for stack depth
+  for(let k=0;k<2;k++){const m=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshBasicMaterial({color:0xece6d6,transparent:true,opacity:0.5,depthTest:false,depthWrite:false}));
+    m.position.set((k?0.4:-0.4),-1.2,-0.4-k*0.2);m.rotation.z=(k?-0.12:0.12);m.renderOrder=-10-k;scene.add(m);}
+
+  const N=PROJECTS.length, armLen=2.6, pivotY=-3.6, maxRot=0.32;
+  PROJECTS.forEach((p,i)=>{
+    const t=N>1?i/(N-1):0.5, ang=(-maxRot)+(2*maxRot)*t;
+    const grp=new THREE.Group();
+    const fanPos=new THREE.Vector3(Math.sin(ang)*armLen, pivotY+Math.cos(ang)*armLen, i*0.06);
+    grp.position.copy(fanPos); grp.rotation.z=-ang;
+
+    const tex=p.image?loader.load(p.image):shot(p);
+    const base=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshBasicMaterial({map:cardFace(p,i),transparent:true,depthTest:false,depthWrite:false}));
+    const pic=new THREE.Mesh(new THREE.PlaneGeometry(2.56,1.86),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,depthWrite:false}));
+    pic.position.set(0,0.37,0.02);
+    const sh=new THREE.Mesh(new THREE.PlaneGeometry(W*1.5,H*1.35),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,opacity:0.35,depthTest:false,depthWrite:false}));
+    sh.position.set(0.15,-0.25,-0.06);
+    grp.add(sh,base,pic); scene.add(grp);
+    deck.push({grp,base,pic,sh,idx:i,fanPos,fanRot:-ang});
+  });
+}
+
+/* ---- interaction ---- */
+let mode='fan', presented=-1, hover=-1, parX=0, parTX=0;
+const ray=new THREE.Raycaster(),m=new THREE.Vector2();
+function pick(e){m.x=(e.clientX/innerWidth)*2-1;m.y=-(e.clientY/innerHeight)*2+1;ray.setFromCamera(m,camera);
+  const hit=ray.intersectObjects(deck.map(d=>d.base))[0];return hit?hit.object.parent.userData.idx ?? deck.find(d=>d.base===hit.object).idx : -1;}
+addEventListener('pointermove',e=>{parTX=-((e.clientX/innerWidth)-0.5)*0.8;
+  if(mode==='fan'){hover=pick(e);renderer.domElement.style.cursor=hover>=0?'pointer':'default';}});
+renderer.domElement.addEventListener('click',e=>{
+  if(mode==='present'){present(-1);return;} const i=pick(e); if(i>=0)present(i);});
+
+const card=document.getElementById('card');
+function present(i){
+  if(i<0){mode='fan';presented=-1;card.classList.remove('show');document.getElementById('hint').style.opacity=.85;return;}
+  mode='present';presented=i;hover=-1;const p=PROJECTS[i];
+  card.style.setProperty('--accent',p.accent);
+  document.getElementById('cIdx').textContent='0'+(i+1)+' / 0'+PROJECTS.length;
+  document.getElementById('cTitle').textContent=p.title;document.getElementById('cDesc').textContent=p.subtitle;
+  document.getElementById('cVisit').href=p.url;card.classList.add('show');document.getElementById('hint').style.opacity=0;
+}
+document.getElementById('cBack').addEventListener('click',()=>present(-1));
+
+/* ---- loop ---- */
+const clk=new THREE.Clock();
+function L(a,b,t){return a+(b-a)*t;}
+function tick(){
+  const t=clk.getElapsedTime(); bg.material.uniforms.uTime.value=t;
+  shapes.forEach(s=>{const u=s.userData;s.position.x=u.bx+Math.sin(t*u.sp+u.ph)*0.4;s.position.y=u.by+Math.sin(t*u.sp*1.2+u.ph)*0.3;s.rotation.z+=0.0006;});
+
+  deck.forEach(d=>{const i=d.idx;
+    let tp=d.fanPos.clone(), tr=d.fanRot, ts=1, op=1, boost=0;
+    if(mode==='present'){
+      if(i===presented){tp.set(0,-0.1,3.6);tr=0;ts=1.55;op=1;boost=2000;}
+      else{tp=d.fanPos.clone();tp.z-=1.5;tp.y-=0.5;ts=0.82;op=0.35;}
+    }else if(hover>=0){
+      if(i===hover){tp.z+=1.6;tp.y+=0.55;tr=d.fanRot*0.25;ts=1.12;boost=2000;}
+      else{tp.x+=(i<hover?-0.45:0.45);}
+    }
+    tp.y+=Math.sin(t*0.5+i)*0.04;
+    d.grp.position.lerp(tp,0.12);
+    d.grp.rotation.z=L(d.grp.rotation.z,tr,0.12);
+    const s=L(d.grp.scale.x,ts,0.12); d.grp.scale.set(s,s,s);
+    d.base.material.opacity=L(d.base.material.opacity,op,0.12);
+    d.pic.material.opacity=L(d.pic.material.opacity,op,0.12);
+    d.sh.material.opacity=L(d.sh.material.opacity,op*0.35,0.12);
+    d.sh.renderOrder=i*10+boost; d.base.renderOrder=i*10+1+boost; d.pic.renderOrder=i*10+2+boost;
+  });
+  parX=L(parX,mode==='present'?0:parTX,0.05);
+  camera.position.x=parX; camera.lookAt(parX,-0.4,0);
+  renderer.render(scene,camera); requestAnimationFrame(tick);
+}
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>{
+  buildDeck(); tick(); setTimeout(()=>document.getElementById('loading').classList.add('hide'),500);
+});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>

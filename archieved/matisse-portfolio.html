@@ -1,0 +1,332 @@
+<!--
+  MATISSE CUT-OUT WORLD — portfolio prototype (saturated / tapestry direction)
+  ----------------------------------------------------------------------------
+  A color-blocked field inhabited by hand-cut Matisse shapes that drift like a Calder mobile.
+  Your three live sites float as framed works. Move mouse to look · drag to pan · scroll to move in · click a frame to enter.
+
+  ===> EDIT the PROJECTS array (search "EDIT HERE"): title, subtitle, url, image (screenshot URL or null), accent.
+       Deliberate choices: everything is FLAT (papiers découpés have no depth), navigation is translational
+       parallax (not orbit) so shapes never show a cardboard edge, and there is NO ray tracing — Matisse is
+       matte and anti-illusionistic, so the richness comes from color, shape, gouache texture, and motion.
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Caveat:wght@600&display=swap');
+  :root{ --cream:#f3ecdb; --ink:#1c1410; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#a81a14;overflow:hidden;font-family:'Bricolage Grotesque',sans-serif;color:var(--cream);}
+  #app{position:fixed;inset:0;} canvas{display:block;}
+
+  .hud{position:fixed;z-index:5;pointer-events:none;}
+  .title{top:30px;left:34px;}
+  .title h1{font-weight:800;font-size:clamp(28px,5vw,52px);line-height:.92;letter-spacing:-1px;margin:0;
+    color:var(--cream);text-shadow:3px 4px 0 rgba(0,0,0,.22);}
+  .title span{display:block;margin-top:8px;font-weight:600;font-size:12px;letter-spacing:4px;text-transform:uppercase;color:#f6d36b;}
+  .sig{bottom:24px;left:36px;font-family:'Caveat',cursive;font-size:34px;color:var(--cream);opacity:.92;transform:rotate(-4deg);}
+  .hint{bottom:26px;right:34px;text-align:right;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#ffe6c4;opacity:.85;line-height:1.9;transition:opacity .4s;}
+
+  .card{position:fixed;z-index:6;right:34px;top:50%;transform:translateY(-50%) translateX(46px);
+    width:340px;max-width:calc(100vw - 56px);background:var(--cream);color:var(--ink);
+    border-radius:6px;padding:28px;box-shadow:10px 14px 0 rgba(0,0,0,.25);
+    opacity:0;pointer-events:none;transition:opacity .45s ease, transform .45s cubic-bezier(.2,.8,.2,1);}
+  .card.show{opacity:1;transform:translateY(-50%) translateX(0);pointer-events:auto;}
+  .card .idx{font-weight:800;font-size:13px;letter-spacing:2px;color:var(--accent,#1b3fd4);}
+  .card h2{font-weight:800;font-size:36px;line-height:1;margin:8px 0 6px;letter-spacing:-1px;}
+  .card p{font-size:14px;line-height:1.6;color:#5b4f44;margin:0 0 22px;}
+  .row{display:flex;gap:10px;}
+  .btn{flex:1;text-align:center;text-decoration:none;font-weight:800;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+    padding:14px;border-radius:4px;cursor:pointer;transition:transform .15s;}
+  .btn:hover{transform:translate(-2px,-2px);}
+  .btn.visit{background:var(--accent,#1b3fd4);color:#fff;box-shadow:3px 3px 0 rgba(0,0,0,.25);}
+  .btn.back{background:transparent;color:var(--ink);border:2px solid rgba(0,0,0,.2);}
+  .leaf{position:absolute;top:-16px;right:18px;width:40px;height:40px;}
+
+  .loading{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:#a81a14;
+    font-weight:800;letter-spacing:5px;text-transform:uppercase;font-size:12px;color:#ffe6c4;transition:opacity .8s;}
+  .loading.hide{opacity:0;pointer-events:none;}
+</style>
+
+<div id="app"></div>
+<div class="hud title"><h1>Hong<br>Zhang</h1><span>Selected Work · MMXXVI</span></div>
+<div class="hud sig">— Hong Zhang</div>
+<div class="hud hint" id="hint">move · look<br>drag · pan<br>click · enter</div>
+
+<div class="card" id="card">
+  <svg class="leaf" viewBox="0 0 40 40"><path d="M20 2 C28 10 34 14 36 26 C30 22 26 26 20 38 C14 26 10 22 4 26 C6 14 12 10 20 2Z" fill="var(--accent,#1b3fd4)"/></svg>
+  <div class="idx" id="cIdx">01 / 03</div>
+  <h2 id="cTitle">Project</h2>
+  <p id="cDesc">A short line about the project.</p>
+  <div class="row">
+    <a class="btn visit" id="cVisit" target="_blank" rel="noopener noreferrer">Visit site ↗</a>
+    <a class="btn back" id="cBack">Back</a>
+  </div>
+</div>
+<div class="loading" id="loading">cutting the paper</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================ EDIT HERE ============================ */
+const PROJECTS = [
+  {
+    title:    "Restaurant Menu",
+    subtitle: "AI-powered restaurant menu explorer — browse dishes, filter by dietary needs, and get personalised recommendations in real time.",
+    url:      "https://restaurant-api--restaurant-menu-poc-2026.us-central1.hosted.app/",
+    image:    null,
+    accent:   "#f4845f"
+  },
+  {
+    title:    "Yi Jing Oracle",
+    subtitle: "Cast a hexagram, receive an ancient interpretation. A digital divination tool built on the 64 trigrams of the I Ching.",
+    url:      "https://yi-jing-tool.web.app/",
+    image:    null,
+    accent:   "#c9a84c"
+  },
+  {
+    title:    "AI Role Player",
+    subtitle: "Step into a conversation with any persona. An AI chat tool that lets you craft characters, set the scene, and improvise freely.",
+    url:      "https://ai-role-player.web.app/",
+    image:    null,
+    accent:   "#7eb8f7"
+  },
+];
+/* ================================================================== */
+
+const PALETTE = [0x1b3fd4, 0xf4c20d, 0x2f9e57, 0x111111, 0xf3ecdb, 0xe85a1f]; // ultramarine, lemon, leaf-green, black, paper, accent-orange
+
+const NOISE = `
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));vec2 u=f*f*(3.-2.*f);return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p*=2.;a*=.5;}return v;}`;
+
+const app=document.getElementById('app');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xa81a14);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,200);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.75)); renderer.setSize(innerWidth,innerHeight);
+app.appendChild(renderer.domElement);
+
+/* ---------- tapestry color-field (background) ---------- */
+const bg=new THREE.Mesh(new THREE.PlaneGeometry(220,150),new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0}},
+  vertexShader:`varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec2 vP;uniform float uTime;${NOISE}
+   void main(){
+     vec2 p=vP*0.045; float t=uTime*0.025;
+     vec2 g=p+0.18*vec2(fbm(p*1.3+t),fbm(p*1.3-t));
+     vec3 vermilion=vec3(.86,.21,.12), deep=vec3(.62,.11,.10), maroon=vec3(.36,.07,.10), orange=vec3(.90,.40,.13);
+     float bx=smoothstep(-.06,.06,sin(g.x*1.25));
+     float by=smoothstep(-.06,.06,sin(g.y*1.05+.6));
+     vec3 col=mix(mix(maroon,deep,bx),mix(vermilion,orange,bx),by);
+     col*=1.0+(fbm(vP*2.8)-.5)*0.10;            // gouache grain
+     col*=0.93+0.07*fbm(vP*0.4);                 // broad tonal drift
+     gl_FragColor=vec4(col,1.);
+   }`
+}));
+bg.position.z=-32; scene.add(bg);
+
+/* ---------- gouache shape material ---------- */
+const baseShapeMat=new THREE.ShaderMaterial({
+  side:THREE.DoubleSide,
+  uniforms:{uColor:{value:new THREE.Color(0xffffff)},uSeed:{value:0}},
+  vertexShader:`varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec2 vP;uniform vec3 uColor;uniform float uSeed;${NOISE}
+   void main(){
+     vec3 col=uColor;
+     float streak=fbm(vP*vec2(0.7,3.2)+uSeed);
+     float mottle=fbm(vP*2.2+uSeed*2.0+5.0);
+     col*=1.0+(streak-0.5)*0.13+(mottle-0.5)*0.06;
+     gl_FragColor=vec4(col,1.);
+   }`
+});
+
+/* ---------- hand-cut organic shapes ---------- */
+function mulberry(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function shapeGeo(type,R,seed){
+  const rnd=mulberry(seed),N=110,pts=[];
+  const h1=rnd()*6.28,h2=rnd()*6.28,k1=2+((rnd()*3)|0),k2=4+((rnd()*4)|0);
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2; let r=R,sx=1,sy=1;
+    if(type==='blob'){r=R*(1+0.20*Math.sin(3*a+h1)+0.10*Math.sin(5*a+h2));}
+    else if(type==='leaf'){r=R*(1+0.30*Math.sin(2*a+h1));sy=1.7;sx=0.68;}
+    else if(type==='flower'){r=R*(0.5+0.5*Math.pow(Math.abs(Math.cos(2.5*a)),0.7));}
+    else if(type==='frond'){r=R*(0.45+0.55*Math.abs(Math.sin(a*4+h1)));sy=1.5;sx=0.62;}
+    r+=R*0.05*Math.sin(a*k1+h1)+R*0.03*Math.sin(a*k2+h2);   // hand-cut wobble
+    pts.push(new THREE.Vector2(Math.cos(a)*r*sx,Math.sin(a)*r*sy));
+  }
+  const g=new THREE.ShapeGeometry(new THREE.Shape(pts)); g.center(); return g;
+}
+function makeShape(type,R,colorHex,seed){
+  const g=shapeGeo(type,R,seed);
+  const mat=baseShapeMat.clone(); mat.uniforms.uColor.value=new THREE.Color(colorHex); mat.uniforms.uSeed.value=seed%100;
+  const mesh=new THREE.Mesh(g,mat);
+  const shadow=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.16}));
+  shadow.position.set(R*0.06,-R*0.08,-0.05);
+  const grp=new THREE.Group(); grp.add(shadow,mesh); return grp;
+}
+
+const TYPES=['blob','leaf','flower','frond'];
+const movers=[];
+let seed=7;
+function scatter(n,zMin,zMax,rMin,rMax){
+  for(let i=0;i<n;i++){
+    const t=TYPES[(seed*3)%TYPES.length];
+    const R=rMin+Math.random()*(rMax-rMin);
+    const col=PALETTE[(seed*5)%PALETTE.length];
+    const g=makeShape(t,R,col,seed++);
+    const z=zMin+Math.random()*(zMax-zMin);
+    g.position.set((Math.random()-0.5)*30,(Math.random()-0.5)*17,z);
+    g.rotation.z=Math.random()*6.28;
+    const depth=(z-zMin)/(zMax-zMin);            // farther = slower
+    g.userData={rot:(Math.random()-0.5)*0.25*(1-depth*0.6),
+      bobA:0.2+Math.random()*0.5,bobS:0.2+Math.random()*0.5,
+      swA:0.15+Math.random()*0.4,swS:0.15+Math.random()*0.4,
+      ph:Math.random()*6.28,baseX:g.position.x,baseY:g.position.y,
+      repelX:0,repelY:0};
+    scene.add(g); movers.push(g);
+  }
+}
+scatter(7,-24,-18,2.4,4.2);   // big, far, slow (corners of the "tapestry")
+scatter(12,-16,-7,1.0,2.4);   // mid drifting field
+scatter(5,-4,-2,1.6,3.0);     // foreground framing shapes
+
+/* ---------- playing-card project frames ---------- */
+function placeholder(p,i){
+  const c=document.createElement('canvas');c.width=640;c.height=896;
+  const x=c.getContext('2d');
+  // Card background
+  const bg2=x.createLinearGradient(0,0,0,896);
+  bg2.addColorStop(0,'#faf8f2');bg2.addColorStop(1,'#ede6d4');
+  x.fillStyle=bg2;x.fillRect(0,0,640,896);
+  // Double border rule
+  x.strokeStyle='#1a1410';x.lineWidth=10;x.strokeRect(6,6,628,884);
+  x.lineWidth=2.5;x.strokeRect(22,22,596,852);
+  // Helper: draw diamond pip
+  function pip(cx,cy,r){x.beginPath();x.moveTo(cx,cy-r);x.lineTo(cx+r*0.7,cy);x.lineTo(cx,cy+r);x.lineTo(cx-r*0.7,cy);x.closePath();x.fill();}
+  // Top-left corner index
+  x.fillStyle=p.accent;
+  x.font='bold 64px "Bricolage Grotesque",sans-serif';
+  x.textBaseline='top';x.textAlign='left';
+  x.fillText(String(i+1).padStart(2,'0'),30,26);
+  pip(48,122,16);
+  // Screenshot / image placeholder area
+  x.fillStyle=p.accent+'1a';x.fillRect(44,168,552,372);
+  x.strokeStyle=p.accent+'55';x.lineWidth=1.5;x.strokeRect(44,168,552,372);
+  x.fillStyle=p.accent;
+  x.font='bold 50px "Bricolage Grotesque",sans-serif';
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillText(p.title,320,354);
+  x.fillStyle='#9a8a78';x.font='19px "Bricolage Grotesque",sans-serif';
+  x.fillText('screenshot goes here',320,418);
+  // Thin divider
+  x.strokeStyle='#1a1410';x.globalAlpha=0.10;x.lineWidth=1;
+  x.beginPath();x.moveTo(44,576);x.lineTo(596,576);x.stroke();x.globalAlpha=1;
+  // Title + wrapped subtitle below image
+  x.fillStyle='#1a1410';
+  x.font='bold 36px "Bricolage Grotesque",sans-serif';
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillText(p.title,320,622);
+  x.fillStyle='#7a6858';x.font='16px "Bricolage Grotesque",sans-serif';
+  const words=p.subtitle.split(' ');let line='',lines=[];
+  for(const w of words){if((line+w).length>44){lines.push(line.trim());line='';}line+=w+' ';}lines.push(line.trim());
+  lines.slice(0,3).forEach((l,k)=>x.fillText(l,320,666+k*24));
+  // Bottom-right corner (mirrored 180°)
+  x.save();x.translate(640,896);x.rotate(Math.PI);
+  x.fillStyle=p.accent;
+  x.font='bold 64px "Bricolage Grotesque",sans-serif';
+  x.textBaseline='top';x.textAlign='left';
+  x.fillText(String(i+1).padStart(2,'0'),30,26);
+  pip(48,122,16);
+  x.restore();
+  return new THREE.CanvasTexture(c);
+}
+const loader=new THREE.TextureLoader();
+const frames=[];
+PROJECTS.forEach((p,i)=>{
+  const W=3.2,H=W*1.4;                          // portrait playing-card proportions
+  const grp=new THREE.Group();
+  grp.position.set((i-1)*5.6,0,-8);
+  grp.rotation.z=(i-1)*0.07;                    // slight fan / dealt-card angle
+  const tex=p.image?loader.load(p.image):placeholder(p,i);
+  const sh=new THREE.Mesh(new THREE.PlaneGeometry(W+0.2,H+0.2),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.30}));
+  sh.position.set(0.18,-0.22,-0.06);
+  const border=new THREE.Mesh(new THREE.PlaneGeometry(W+0.06,H+0.06),new THREE.MeshBasicMaterial({color:0x1a1410}));
+  const card=new THREE.Mesh(new THREE.PlaneGeometry(W,H),new THREE.MeshBasicMaterial({map:tex}));card.position.z=0.01;
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(W+1.6,H+1.6),new THREE.MeshBasicMaterial({color:new THREE.Color(p.accent),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));glow.position.z=-0.04;
+  grp.add(sh,glow,border,card);
+  grp.userData={pic:card,glow,index:i,baseX:grp.position.x,baseY:grp.position.y,ph:i*2.1};
+  scene.add(grp);frames.push(grp);
+});
+
+/* ---------- camera: translational parallax (keeps everything flat) ---------- */
+const base={x:0,y:0,z:13}, want={x:0,y:0,z:13}, par={x:0,y:0}, parT={x:0,y:0};
+let focused=-1,down=null,moved=false;
+let rawMX=innerWidth/2,rawMY=innerHeight/2;
+function lerp(a,b,t){return a+(b-a)*t;}
+function mouseWorld(z){
+  const v=new THREE.Vector3((rawMX/innerWidth)*2-1,-(rawMY/innerHeight)*2+1,0.5).unproject(camera);
+  const dir=v.sub(camera.position).normalize();
+  if(Math.abs(dir.z)<0.001)return{x:0,y:0};
+  const t2=(z-camera.position.z)/dir.z;
+  return{x:camera.position.x+dir.x*t2, y:camera.position.y+dir.y*t2};
+}
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};moved=false;});
+addEventListener('pointerup',()=>down=null);
+addEventListener('pointermove',e=>{
+  rawMX=e.clientX; rawMY=e.clientY;
+  parT.x=-((e.clientX/innerWidth)-0.5)*1.8; parT.y=((e.clientY/innerHeight)-0.5)*1.3;
+  if(down){ if(Math.abs(e.clientX-down.x)+Math.abs(e.clientY-down.y)>4)moved=true;
+    if(focused<0){ want.x=Math.max(-13,Math.min(13,want.x-(e.clientX-down.x)*0.02));
+                   want.y=Math.max(-7,Math.min(7,want.y+(e.clientY-down.y)*0.02)); down={x:e.clientX,y:e.clientY}; } }
+});
+renderer.domElement.addEventListener('wheel',e=>{ if(focused<0){want.z=Math.max(7,Math.min(18,want.z+e.deltaY*0.01));} e.preventDefault();},{passive:false});
+
+const ray=new THREE.Raycaster(),m=new THREE.Vector2();let hover=-1;
+function pick(e){m.x=(e.clientX/innerWidth)*2-1;m.y=-(e.clientY/innerHeight)*2+1;ray.setFromCamera(m,camera);
+  const hit=ray.intersectObjects(frames.map(f=>f.userData.pic))[0];return hit?hit.object.parent.userData.index:-1;}
+renderer.domElement.addEventListener('pointermove',e=>{if(focused>=0)return;hover=pick(e);renderer.domElement.style.cursor=hover>=0?'pointer':'grab';});
+renderer.domElement.addEventListener('click',e=>{ if(moved)return;
+  if(focused>=0){unfocus();return;} const i=pick(e); if(i>=0)focus(i);});
+
+const card=document.getElementById('card');
+function focus(i){focused=i;const f=frames[i],p=PROJECTS[i];
+  want.x=f.userData.baseX;want.y=f.userData.baseY;want.z=f.position.z+4.6;
+  card.style.setProperty('--accent',p.accent);
+  document.getElementById('cIdx').textContent=String(i+1).padStart(2,'0')+' / '+String(PROJECTS.length).padStart(2,'0');
+  document.getElementById('cTitle').textContent=p.title;document.getElementById('cDesc').textContent=p.subtitle;
+  document.getElementById('cVisit').href=p.url;card.classList.add('show');document.getElementById('hint').style.opacity=0;}
+function unfocus(){focused=-1;want.x=0;want.y=0;want.z=13;card.classList.remove('show');document.getElementById('hint').style.opacity=.85;}
+document.getElementById('cBack').addEventListener('click',unfocus);
+
+/* ---------- loop ---------- */
+const clock=new THREE.Clock();
+function tick(){
+  const t=clock.getElapsedTime();
+  bg.material.uniforms.uTime.value=t;
+  movers.forEach(g=>{const u=g.userData;
+    g.rotation.z+=u.rot*0.01;
+    // Mouse repel: flee when cursor approaches, drift back to base
+    const mw=mouseWorld(g.position.z);
+    const dx=g.position.x-mw.x, dy=g.position.y-mw.y;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    const repR=4.8;
+    if(dist<repR&&dist>0.01){
+      const f=Math.pow((repR-dist)/repR,2)*0.32;
+      u.repelX+=(dx/dist)*f; u.repelY+=(dy/dist)*f;
+    }
+    u.repelX=Math.max(-6,Math.min(6,u.repelX))*0.88;
+    u.repelY=Math.max(-6,Math.min(6,u.repelY))*0.88;
+    g.position.x=u.baseX+Math.sin(t*u.swS+u.ph)*u.swA+u.repelX;
+    g.position.y=u.baseY+Math.sin(t*u.bobS+u.ph*1.3)*u.bobA+u.repelY;});
+  frames.forEach((f,i)=>{const u=f.userData;
+    f.position.x=u.baseX+Math.sin(t*0.3+u.ph)*0.12;
+    f.position.y=u.baseY+Math.sin(t*0.4+u.ph)*0.12;
+    u.glow.material.opacity=lerp(u.glow.material.opacity,(i===hover||i===focused)?0.5:0,0.08);});
+  base.x=lerp(base.x,want.x,0.06);base.y=lerp(base.y,want.y,0.06);base.z=lerp(base.z,want.z,0.06);
+  par.x=lerp(par.x,focused<0?parT.x:0,0.05);par.y=lerp(par.y,focused<0?parT.y:0,0.05);
+  camera.position.set(base.x+par.x,base.y+par.y,base.z);
+  camera.lookAt(base.x+par.x,base.y+par.y,base.z-15);
+  renderer.render(scene,camera);requestAnimationFrame(tick);
+}
+tick();
+setTimeout(()=>document.getElementById('loading').classList.add('hide'),650);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>

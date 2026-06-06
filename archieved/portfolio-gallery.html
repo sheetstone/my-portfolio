@@ -1,0 +1,286 @@
+<!--
+  EXPLORABLE 3D GALLERY — portfolio prototype
+  ------------------------------------------------
+  Each of your live sites floats as a framed screen in a quiet "observatory in the void".
+  Drag to look around · scroll to zoom · click a screen to fly to it · Visit site opens the live URL.
+
+  ===> TO USE YOUR OWN WORK: edit the PROJECTS array below (search "EDIT HERE").
+       - title / subtitle: shown on the info card
+       - url:   your Firebase live link
+       - image: a screenshot URL (or leave null for an auto-generated placeholder)
+       - accent: any CSS/hex color, used for the glow + card accent
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --bg:#04040a;
+    --ink:#eceaf2;
+    --muted:#8b889c;
+    --line:rgba(236,234,242,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;font-family:'Space Mono',monospace;color:var(--ink);}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  /* ---- intro / HUD ---- */
+  .hud{position:fixed;left:0;right:0;pointer-events:none;z-index:5;}
+  .topbar{top:0;padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start;}
+  .brand{font-family:'Instrument Serif',serif;font-size:30px;letter-spacing:.5px;line-height:1;}
+  .brand i{color:var(--muted);font-size:14px;font-family:'Space Mono',monospace;font-style:normal;display:block;margin-top:6px;letter-spacing:3px;text-transform:uppercase;}
+  .hint{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);text-align:right;line-height:1.9;}
+
+  /* ---- project card ---- */
+  .card{
+    position:fixed;z-index:6;right:32px;top:50%;transform:translateY(-50%) translateX(40px);
+    width:330px;max-width:calc(100vw - 64px);
+    background:rgba(10,10,18,0.62);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    opacity:0;pointer-events:none;transition:opacity .5s ease,transform .5s cubic-bezier(.2,.8,.2,1);
+  }
+  .card.show{opacity:1;transform:translateY(-50%) translateX(0);pointer-events:auto;}
+  .card .idx{font-size:11px;letter-spacing:3px;color:var(--accent,#e9b15a);}
+  .card h2{font-family:'Instrument Serif',serif;font-weight:400;font-size:34px;margin:10px 0 4px;line-height:1.05;}
+  .card p{color:var(--muted);font-size:13px;line-height:1.7;margin:0 0 22px;}
+  .card .row{display:flex;gap:10px;}
+  .btn{flex:1;text-align:center;text-decoration:none;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;
+    padding:13px 14px;border-radius:10px;cursor:pointer;transition:transform .15s ease,background .2s ease;border:1px solid var(--line);}
+  .btn:hover{transform:translateY(-2px);}
+  .btn.visit{background:var(--accent,#e9b15a);color:#0a0a12;border-color:transparent;font-weight:700;}
+  .btn.back{background:transparent;color:var(--ink);}
+
+  .loading{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:var(--bg);
+    font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);transition:opacity .8s ease;}
+  .loading.hide{opacity:0;pointer-events:none;}
+</style>
+
+<div id="app"></div>
+
+<div class="hud topbar">
+  <div class="brand">Hong Zhang<i>Selected Work · MMXXVI</i></div>
+  <div class="hint" id="hint">drag · look<br>scroll · zoom<br>click · enter</div>
+</div>
+
+<div class="card" id="card">
+  <div class="idx" id="cIdx">01 / 03</div>
+  <h2 id="cTitle">Project</h2>
+  <p id="cDesc">A short line about the project.</p>
+  <div class="row">
+    <a class="btn visit" id="cVisit" target="_blank" rel="noopener noreferrer">Visit site ↗</a>
+    <a class="btn back" id="cBack">Back</a>
+  </div>
+</div>
+
+<div class="loading" id="loading">entering the gallery</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================ EDIT HERE ============================ */
+const PROJECTS = [
+  {
+    title:    "Restaurant Menu",
+    subtitle: "AI-powered restaurant menu explorer — browse dishes, filter by dietary needs, and get personalised recommendations in real time.",
+    url:      "https://restaurant-api--restaurant-menu-poc-2026.us-central1.hosted.app/",
+    image:    null,
+    accent:   "#f4845f"
+  },
+  {
+    title:    "Yi Jing Oracle",
+    subtitle: "Cast a hexagram, receive an ancient interpretation. A digital divination tool built on the 64 trigrams of the I Ching.",
+    url:      "https://yi-jing-tool.web.app/",
+    image:    null,
+    accent:   "#c9a84c"
+  },
+  {
+    title:    "AI Role Player",
+    subtitle: "Step into a conversation with any persona. An AI chat tool that lets you craft characters, set the scene, and improvise freely.",
+    url:      "https://ai-role-player.web.app/",
+    image:    null,
+    accent:   "#7eb8f7"
+  },
+];
+/* ================================================================== */
+
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x04040a, 0.018);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setSize(innerWidth, innerHeight);
+app.appendChild(renderer.domElement);
+
+/* ---------- gradient sky (custom shader) ---------- */
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(120, 32, 32),
+  new THREE.ShaderMaterial({
+    side:THREE.BackSide,
+    uniforms:{ uTime:{value:0} },
+    vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader:`
+      varying vec3 vP; uniform float uTime;
+      void main(){
+        vec3 d = normalize(vP);
+        float h = d.y*0.5+0.5;
+        vec3 top = vec3(0.015,0.015,0.04);
+        vec3 hor = vec3(0.05,0.045,0.10);
+        vec3 col = mix(hor, top, pow(h,0.7));
+        // faint warm glow band near the horizon
+        float band = exp(-pow((h-0.46)*7.0,2.0));
+        col += vec3(0.10,0.07,0.03)*band;
+        // slow aurora shimmer
+        float a = sin(d.x*3.0+uTime*0.15)*sin(d.z*2.0-uTime*0.1);
+        col += vec3(0.02,0.03,0.05)*max(a,0.0)*smoothstep(0.3,0.6,h);
+        gl_FragColor = vec4(col,1.0);
+      }`
+  })
+);
+scene.add(sky);
+
+/* ---------- starfield ---------- */
+(() => {
+  const N=1600, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){
+    const r=40+Math.random()*70, t=Math.random()*Math.PI*2, p=Math.acos(2*Math.random()-1);
+    pos[i*3]=r*Math.sin(p)*Math.cos(t); pos[i*3+1]=r*Math.cos(p)*0.6+10; pos[i*3+2]=r*Math.sin(p)*Math.sin(t);
+  }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0xbfc6ff,size:0.18,sizeAttenuation:true,transparent:true,opacity:0.8})));
+})();
+
+/* ---------- floor grid (fades into fog) ---------- */
+const grid = new THREE.GridHelper(120, 60, 0x2a2a44, 0x16162a);
+grid.material.transparent = true; grid.material.opacity = 0.35; grid.position.y = -4.5;
+scene.add(grid);
+
+/* ---------- lights ---------- */
+scene.add(new THREE.AmbientLight(0x404060, 1.2));
+
+/* ---------- build screens ---------- */
+const loader = new THREE.TextureLoader();
+const screens = [];
+function placeholder(p, i){
+  const c=document.createElement('canvas'); c.width=1024; c.height=640; const x=c.getContext('2d');
+  x.fillStyle='#0c0c16'; x.fillRect(0,0,1024,640);
+  x.fillStyle='#14141f'; x.fillRect(0,0,1024,70);                 // browser bar
+  ['#ff5f57','#febc2e','#28c840'].forEach((d,k)=>{x.fillStyle=d;x.beginPath();x.arc(40+k*34,35,9,0,7);x.fill();});
+  x.fillStyle='#26263a'; x.fillRect(170,22,640,30);               // url pill
+  const grd=x.createLinearGradient(0,70,1024,640); grd.addColorStop(0,p.accent+'22'); grd.addColorStop(1,'#0c0c16');
+  x.fillStyle=grd; x.fillRect(0,70,1024,570);
+  x.fillStyle=p.accent; x.font='600 56px "Space Mono", monospace'; x.fillText(p.title, 64, 360);
+  x.fillStyle='#6f6f86'; x.font='22px "Space Mono", monospace'; x.fillText('screenshot goes here', 66, 410);
+  return new THREE.CanvasTexture(c);
+}
+
+const ARC = [-0.62, 0, 0.62];      // angular spread of the three screens
+PROJECTS.forEach((p,i)=>{
+  const a=ARC[i], R=7.5;
+  const grp=new THREE.Group();
+  grp.position.set(Math.sin(a)*R, 0.4, Math.cos(a)*R + 1.5);
+  grp.lookAt(0, 0.4, 24);                                  // face the arriving viewer
+  const W=4.4, H=W*0.625;
+
+  const tex = p.image ? loader.load(p.image) : placeholder(p,i);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(W,H), new THREE.MeshBasicMaterial({map:tex}));
+  const bezel =new THREE.Mesh(new THREE.PlaneGeometry(W+0.28,H+0.28), new THREE.MeshBasicMaterial({color:0x08080f}));
+  bezel.position.z=-0.02;
+  const glow=new THREE.Mesh(new THREE.PlaneGeometry(W+1.2,H+1.2), new THREE.MeshBasicMaterial({color:new THREE.Color(p.accent),transparent:true,opacity:0.0,blending:THREE.AdditiveBlending,depthWrite:false}));
+  glow.position.z=-0.05;
+
+  grp.add(glow,bezel,screen);
+  grp.userData={ screen, glow, index:i, baseY:grp.position.y, phase:i*1.7, viewAngle:a };
+  scene.add(grp); screens.push(grp);
+});
+
+/* ---------- camera controls (custom orbit + cinematic focus) ---------- */
+const state = { theta:0, phi:Math.PI/2 - 0.12, radius:15, target:new THREE.Vector3(0,0.4,1.5) };
+const want  = { theta:0, phi:Math.PI/2 - 0.12, radius:15, target:state.target.clone() };
+let focused=-1, dragging=false, px=0, py=0;
+
+function applyCam(){
+  camera.position.set(
+    state.target.x + state.radius*Math.sin(state.phi)*Math.sin(state.theta),
+    state.target.y + state.radius*Math.cos(state.phi),
+    state.target.z + state.radius*Math.sin(state.phi)*Math.cos(state.theta)
+  );
+  camera.lookAt(state.target);
+}
+renderer.domElement.addEventListener('pointerdown', e=>{dragging=true;px=e.clientX;py=e.clientY;});
+addEventListener('pointerup', ()=>dragging=false);
+addEventListener('pointermove', e=>{
+  if(!dragging||focused>=0) return;
+  want.theta -= (e.clientX-px)*0.005; want.phi += (e.clientY-py)*0.005;
+  want.phi = Math.max(0.5, Math.min(Math.PI-0.5, want.phi));
+  px=e.clientX; py=e.clientY;
+});
+renderer.domElement.addEventListener('wheel', e=>{
+  if(focused>=0) return;
+  want.radius = Math.max(7, Math.min(26, want.radius + e.deltaY*0.012)); e.preventDefault();
+},{passive:false});
+
+/* ---------- raycast: hover + click ---------- */
+const ray=new THREE.Raycaster(), m=new THREE.Vector2(); let hover=-1;
+function pick(e){
+  m.x=(e.clientX/innerWidth)*2-1; m.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(m,camera);
+  const hit=ray.intersectObjects(screens.map(s=>s.userData.screen))[0];
+  return hit ? hit.object.parent.userData.index : -1;
+}
+renderer.domElement.addEventListener('pointermove', e=>{
+  if(focused>=0) return;
+  hover=pick(e); renderer.domElement.style.cursor = hover>=0 ? 'pointer':'grab';
+});
+renderer.domElement.addEventListener('click', e=>{
+  if(Math.abs(e.clientX-px)>4) return;          // ignore drags
+  const i = focused>=0 ? -1 : pick(e);
+  if(i>=0) focus(i);
+});
+
+/* ---------- focus / card ---------- */
+const card=document.getElementById('card');
+function focus(i){
+  focused=i; const g=screens[i], p=PROJECTS[i];
+  want.target.copy(g.position);
+  want.theta=g.userData.viewAngle; want.phi=Math.PI/2; want.radius=4.6;
+  card.style.setProperty('--accent', p.accent);
+  document.getElementById('cIdx').textContent=String(i+1).padStart(2,'0')+' / '+String(PROJECTS.length).padStart(2,'0');
+  document.getElementById('cIdx').style.color=p.accent;
+  document.getElementById('cTitle').textContent=p.title;
+  document.getElementById('cDesc').textContent=p.subtitle;
+  document.getElementById('cVisit').href=p.url;
+  card.classList.add('show'); document.getElementById('hint').style.opacity=0;
+}
+function unfocus(){
+  focused=-1; card.classList.remove('show'); document.getElementById('hint').style.opacity=1;
+  want.target.set(0,0.4,1.5); want.phi=Math.PI/2-0.12; want.radius=15;
+}
+document.getElementById('cBack').addEventListener('click', unfocus);
+
+/* ---------- loop ---------- */
+const clock=new THREE.Clock();
+function lerp(a,b,t){return a+(b-a)*t;}
+function tick(){
+  const t=clock.getElapsedTime();
+  sky.material.uniforms.uTime.value=t;
+  screens.forEach((g,i)=>{
+    g.position.y = g.userData.baseY + Math.sin(t*0.6 + g.userData.phase)*0.12;
+    const target = (i===hover||i===focused) ? 0.5 : 0.0;
+    g.userData.glow.material.opacity = lerp(g.userData.glow.material.opacity, target, 0.08);
+  });
+  const e = focused>=0 ? 0.06 : 0.05;
+  state.theta=lerp(state.theta,want.theta,e); state.phi=lerp(state.phi,want.phi,e);
+  state.radius=lerp(state.radius,want.radius,e); state.target.lerp(want.target,e);
+  applyCam();
+  renderer.render(scene,camera);
+  requestAnimationFrame(tick);
+}
+applyCam(); tick();
+setTimeout(()=>document.getElementById('loading').classList.add('hide'), 600);
+
+addEventListener('resize', ()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
