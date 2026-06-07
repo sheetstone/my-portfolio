@@ -9,7 +9,7 @@ export default function HUD({ hintVisible }) {
       </div>
       <div className="hud sig">— Hong Zhang</div>
       <div className={`hud hint${hintVisible ? '' : ' hidden'}`}>
-        move · look<br />drag · pan<br />click · enter
+        move · look<br />drag · spin<br />click · enter
       </div>
     </>
   );

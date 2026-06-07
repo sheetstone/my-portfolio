@@ -6,9 +6,9 @@ const TYPES = ['blob', 'leaf', 'flower', 'frond'];
 
 // Original defaults — use sliders to tune
 export const DEFAULT_CONFIG = {
-  far:  { n: 7,  zMin: -24, zMax: -18, rMin: 2.4, rMax: 4.2, minX: 0 },
-  mid:  { n: 12, zMin: -16, zMax: -7,  rMin: 1.0, rMax: 2.4, minX: 0 },
-  near: { n: 5,  zMin: -4,  zMax: -2,  rMin: 1.6, rMax: 3.0, minX: 0 },
+  far:  { n: 7,  zMin: -30, zMax: -14, rMin: 2.8, rMax: 6.0, minX: 0 },
+  mid:  { n: 12, zMin: -12, zMax: -6,   rMin: 1.2, rMax: 3.2, minX: 0 },
+  near: { n: 6,  zMin: 8,   zMax: -2,  rMin: 2.0, rMax: 4.0, minX: 0 },
   repR: 4.8, repForce: 0.32, repDecay: 0.88, repClamp: 6,
 };
 
@@ -114,11 +114,11 @@ export function createMovers(scene, cfg = DEFAULT_CONFIG) {
       let xPos;
       if (minX > 0) {
         const side = Math.random() < 0.5 ? -1 : 1;
-        xPos = side * (minX + Math.random() * 5);
+        xPos = side * (minX + Math.random() * 6);
       } else {
-        xPos = (Math.random() - 0.5) * 30;
+        xPos = (Math.random() - 0.5) * 44;
       }
-      grp.position.set(xPos, (Math.random() - 0.5) * 17, z);
+      grp.position.set(xPos, (Math.random() - 0.5) * 24, z);
       grp.rotation.z = Math.random() * 6.28;
       const depth = (z - zMin) / (zMax - zMin);
       grp.userData = {
