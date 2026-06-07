@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BG_VERT, BG_FRAG } from './shaders.js';
 import { DEFAULT_CONFIG, createMovers, destroyMovers, tickMovers } from './shapes.js';
-import { RING_R, createFrames, tickFrames } from './frames.js';
+import { RING_R, createFrames, tickFrames, buildCardBackTexture } from './frames.js';
 
 // Shortest signed angle from `from` to `to` in radians, result in (-π, π]
 function shortestAngle(from, to) {
@@ -341,6 +341,17 @@ export class SceneManager {
 
     this.renderer.render(this.scene, this.camera);
     this._raf = requestAnimationFrame(this._tick);
+  }
+
+  setCardBackStyle(style) {
+    const tex = buildCardBackTexture(style);
+    this.frames.forEach(f => {
+      const { back, pic, placeholder } = f.userData;
+      // Always update the back face mesh
+      if (back) { back.material.map = tex; back.material.needsUpdate = true; }
+      // Placeholder front face also shows the back texture
+      if (placeholder && pic) { pic.material.map = tex; pic.material.needsUpdate = true; }
+    });
   }
 
   recreateShapes(cfg) {

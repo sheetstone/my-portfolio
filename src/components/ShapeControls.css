@@ -99,6 +99,37 @@ section:last-of-type {
   text-align: right;
 }
 
+.sc-backs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.sc-back-btn {
+  padding: 9px 4px 8px;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.sc-back-btn:hover {
+  transform: translateY(-1px);
+}
+
+.sc-back-active {
+  border-color: #1a1410;
+  box-shadow: 0 0 0 1.5px #1a1410;
+}
+
 .sc-reset {
   margin-top: 10px;
   width: 100%;

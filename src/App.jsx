@@ -44,7 +44,10 @@ export default function App() {
         onBack={handleBack}
       />
       <Loading visible={loading} />
-      <ShapeControls onConfigChange={cfg => sceneRef.current?.recreateShapes(cfg)} />
+      <ShapeControls
+        onConfigChange={cfg => sceneRef.current?.recreateShapes(cfg)}
+        onCardBackChange={style => sceneRef.current?.setCardBackStyle(style)}
+      />
     </>
   );
 }

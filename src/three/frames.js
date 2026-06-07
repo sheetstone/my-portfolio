@@ -2,105 +2,227 @@ import * as THREE from 'three';
 import { PROJECTS } from '../data/projects.js';
 
 // ─── Ring parameters ──────────────────────────────────────────────────────────
-export const RING_R     = 10;   // ring radius — increase to spread cards apart
-const        CARD_TOTAL = 12;   // total slots; extras auto-fill as placeholders
+export const RING_R     = 10;
+const        CARD_TOTAL = 12;
 
-// ─── CARD BACK DESIGN ────────────────────────────────────────────────────────
-// Edit this function freely — it controls every placeholder card's appearance.
-// Canvas: 640 × 896, same proportions as the card face.
-function buildCardBackTexture() {
+// ─── CARD BACK STYLES ─────────────────────────────────────────────────────────
+// Each function draws on a 640 × 896 canvas.
+// To add a new design: write a buildStyle_X() and register it in buildCardBackTexture().
+
+export const CARD_BACK_STYLES = [
+  { id: 'geometric', label: 'Géométrique', color: '#1b3fd4' },
+  { id: 'icarus',    label: 'Icare',       color: '#0d1f5c' },
+  { id: 'arbre',     label: 'Arbre',       color: '#c4006e' },
+];
+
+// Geometric: bold triangle tessellation after Matisse *Poster Design* 1952
+function buildStyleGeometric() {
   const c = document.createElement('canvas');
-  c.width = 640;
-  c.height = 896;
+  c.width = 640; c.height = 896;
   const x = c.getContext('2d');
 
-  // Background gradient
-  const grad = x.createLinearGradient(0, 0, 0, 896);
-  grad.addColorStop(0, '#faf8f2');
-  grad.addColorStop(1, '#ede6d4');
-  x.fillStyle = grad;
+  x.fillStyle = '#f8f8f5';
   x.fillRect(0, 0, 640, 896);
 
-  // Double border — identical to card face
-  x.strokeStyle = '#1a1410';
-  x.lineWidth = 10;
-  x.strokeRect(6, 6, 628, 884);
-  x.lineWidth = 2.5;
-  x.strokeRect(22, 22, 596, 852);
-
-  // Diagonal crosshatch inside inner border
   x.save();
   x.beginPath();
-  x.rect(26, 26, 588, 844);
+  x.rect(23, 23, 594, 850);
   x.clip();
-  x.strokeStyle = '#c8b89a';
-  x.globalAlpha = 0.55;
-  x.lineWidth = 1.2;
-  const sp = 36; // spacing — 24 for finer, 48 for coarser
-  for (let d = -960; d < 1600; d += sp) {
-    x.beginPath(); x.moveTo(d, 0); x.lineTo(d + 960, 960); x.stroke();
-    x.beginPath(); x.moveTo(d + 960, 0); x.lineTo(d, 960); x.stroke();
+
+  const cols = 9, rows = 13;
+  const tw = 594 / cols;
+  const th = 850 / rows;
+  const colors = ['#1b3fd4','#2e7d32','#f4c20d','#d81b60','#111111','#d0ccc2','#f5f5f0','#e85a1f'];
+
+  // Seeded LCG for reproducible pattern
+  let s = 1337;
+  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) | 0; return (s >>> 0) / 0x100000000; };
+
+  for (let r = 0; r <= rows; r++) {
+    for (let col = 0; col <= cols; col++) {
+      const bx = 23 + col * tw;
+      const by = 23 + r * th;
+      // Upper-left triangle
+      x.fillStyle = colors[(rnd() * colors.length) | 0];
+      x.beginPath();
+      x.moveTo(bx, by); x.lineTo(bx + tw, by); x.lineTo(bx, by + th);
+      x.fill();
+      // Lower-right triangle
+      x.fillStyle = colors[(rnd() * colors.length) | 0];
+      x.beginPath();
+      x.moveTo(bx + tw, by); x.lineTo(bx + tw, by + th); x.lineTo(bx, by + th);
+      x.fill();
+    }
   }
-  x.globalAlpha = 1;
   x.restore();
 
-  // Diamond helper
-  function diamond(cx, cy, w, h) {
-    x.beginPath();
-    x.moveTo(cx, cy - h);
-    x.lineTo(cx + w, cy);
-    x.lineTo(cx, cy + h);
-    x.lineTo(cx - w, cy);
-    x.closePath();
-  }
+  x.strokeStyle = '#111111';
+  x.lineWidth = 9;
+  x.strokeRect(6, 6, 628, 884);
+  x.lineWidth = 2;
+  x.strokeRect(21, 21, 598, 854);
 
-  const mx = 320, my = 448;
+  return new THREE.CanvasTexture(c);
+}
 
-  // Ghost outer ring
-  x.strokeStyle = '#1a1410';
-  x.globalAlpha = 0.07;
-  x.lineWidth = 28;
-  diamond(mx, my, 82, 126);
-  x.stroke();
-  x.globalAlpha = 1;
+// Icare: dark split background + white figure + gold stars after *The Fall of Icarus* 1943
+function buildStyleIcarus() {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 896;
+  const x = c.getContext('2d');
 
-  // Filled diamond
-  x.fillStyle = '#1a1410';
-  x.globalAlpha = 0.70;
-  diamond(mx, my, 52, 80);
-  x.fill();
-  x.globalAlpha = 1;
+  // Deep navy left side
+  x.fillStyle = '#0d1f5c';
+  x.fillRect(0, 0, 640, 896);
 
-  // White cutout
-  x.fillStyle = '#faf8f2';
-  diamond(mx, my, 26, 40);
-  x.fill();
-
-  // Centre dot
-  x.fillStyle = '#1a1410';
-  x.globalAlpha = 0.60;
+  // Near-black right, with soft diagonal edge
+  x.fillStyle = '#090910';
   x.beginPath();
-  x.arc(mx, my, 5, 0, Math.PI * 2);
+  x.moveTo(370, 0); x.lineTo(640, 0); x.lineTo(640, 896); x.lineTo(300, 896);
+  x.closePath();
   x.fill();
-  x.globalAlpha = 1;
 
-  // Corner pips (matching card face style)
-  function pip(px, py, r) {
-    x.fillStyle = '#a89880';
+  // 8-pointed gold stars
+  function star(sx, sy, r) {
     x.beginPath();
-    x.moveTo(px, py - r);
-    x.lineTo(px + r * 0.7, py);
-    x.lineTo(px, py + r);
-    x.lineTo(px - r * 0.7, py);
+    for (let i = 0; i < 16; i++) {
+      const a = (i * Math.PI) / 8 - Math.PI / 2;
+      const ro = i % 2 === 0 ? r : r * 0.40;
+      const px = sx + Math.cos(a) * ro;
+      const py = sy + Math.sin(a) * ro;
+      i === 0 ? x.moveTo(px, py) : x.lineTo(px, py);
+    }
     x.closePath();
     x.fill();
   }
-  pip(50, 90,  13);
-  pip(50, 806, 13);
-  pip(590, 90,  13);
-  pip(590, 806, 13);
+  x.fillStyle = '#f4c40e';
+  star(110, 125, 44);
+  star(515, 195, 38);
+  star(70,  520, 34);
+  star(570, 475, 40);
+  star(155, 785, 30);
+  star(490, 775, 36);
+
+  // White Icarus silhouette
+  x.fillStyle = '#f5f2eb';
+  function ell(ex, ey, rx, ry, angle) {
+    x.save();
+    x.translate(ex, ey);
+    x.rotate(angle);
+    x.beginPath();
+    x.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    x.fill();
+    x.restore();
+  }
+  const fx = 310, fy = 448;
+  ell(fx,       fy - 165, 28, 36,   0   );  // head
+  ell(fx,       fy -  45, 32, 90,   0   );  // torso
+  ell(fx - 105, fy -  82, 20, 75,   1.10);  // left arm
+  ell(fx + 105, fy -  82, 20, 75,  -1.10);  // right arm
+  ell(fx -  50, fy + 100, 18, 72,  -0.22);  // left leg
+  ell(fx +  50, fy + 100, 18, 72,   0.22);  // right leg
+
+  // Red heart on chest
+  x.fillStyle = '#cc1f1f';
+  const hx = fx, hy = fy - 35, hr = 11;
+  x.beginPath(); x.arc(hx - hr * 0.55, hy, hr * 0.75, 0, Math.PI * 2); x.fill();
+  x.beginPath(); x.arc(hx + hr * 0.55, hy, hr * 0.75, 0, Math.PI * 2); x.fill();
+  x.beginPath();
+  x.moveTo(hx - hr * 1.15, hy);
+  x.lineTo(hx, hy + hr * 1.4);
+  x.lineTo(hx + hr * 1.15, hy);
+  x.closePath();
+  x.fill();
+
+  // White border
+  x.strokeStyle = '#f5f2eb';
+  x.lineWidth = 9;
+  x.strokeRect(6, 6, 628, 884);
+  x.lineWidth = 2;
+  x.strokeRect(21, 21, 598, 854);
 
   return new THREE.CanvasTexture(c);
+}
+
+// Arbre: magenta field + white organic branching form after *Arbre de neige* 1947
+function buildStyleArbre() {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 896;
+  const x = c.getContext('2d');
+
+  x.fillStyle = '#c4006e';
+  x.fillRect(0, 0, 640, 896);
+
+  x.fillStyle   = '#f5f2eb';
+  x.strokeStyle = '#f5f2eb';
+  x.lineCap     = 'round';
+  x.lineJoin    = 'round';
+
+  // Central trunk
+  x.lineWidth = 50;
+  x.beginPath();
+  x.moveTo(322, 865);
+  x.bezierCurveTo(318, 720, 326, 540, 320, 185);
+  x.stroke();
+
+  // Left branches
+  for (const [startX, startY, cpX, cpY, endX, endY, w] of [
+    [308, 745, 215, 660, 132, 565, 32],
+    [308, 635, 185, 535,  95, 425, 28],
+    [312, 525, 195, 428, 110, 325, 24],
+    [314, 418, 205, 343, 138, 250, 22],
+    [316, 318, 228, 268, 165, 195, 18],
+  ]) {
+    x.lineWidth = w;
+    x.beginPath();
+    x.moveTo(startX, startY);
+    x.quadraticCurveTo(cpX, cpY, endX, endY);
+    x.stroke();
+    x.beginPath();
+    x.arc(endX, endY, w * 0.72, 0, Math.PI * 2);
+    x.fill();
+  }
+
+  // Right branches
+  for (const [startX, startY, cpX, cpY, endX, endY, w] of [
+    [334, 720, 425, 638, 508, 545, 32],
+    [336, 608, 435, 510, 525, 405, 28],
+    [332, 498, 422, 412, 512, 318, 24],
+    [328, 398, 415, 335, 482, 250, 22],
+    [324, 302, 402, 260, 452, 190, 18],
+  ]) {
+    x.lineWidth = w;
+    x.beginPath();
+    x.moveTo(startX, startY);
+    x.quadraticCurveTo(cpX, cpY, endX, endY);
+    x.stroke();
+    x.beginPath();
+    x.arc(endX, endY, w * 0.72, 0, Math.PI * 2);
+    x.fill();
+  }
+
+  // Crown tip
+  x.beginPath();
+  x.arc(320, 165, 28, 0, Math.PI * 2);
+  x.fill();
+
+  // White border
+  x.strokeStyle = '#f5f2eb';
+  x.lineWidth = 9;
+  x.strokeRect(6, 6, 628, 884);
+  x.lineWidth = 2;
+  x.strokeRect(21, 21, 598, 854);
+
+  return new THREE.CanvasTexture(c);
+}
+
+// Public factory — call this from SceneManager when switching styles
+export function buildCardBackTexture(style = 'geometric') {
+  switch (style) {
+    case 'icarus':  return buildStyleIcarus();
+    case 'arbre':   return buildStyleArbre();
+    default:        return buildStyleGeometric();
+  }
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -205,15 +327,24 @@ function buildCardTexture(p, i, screenshotImg = null) {
   x.textBaseline = 'top';
   x.textAlign = 'left';
   x.fillText(String(i + 1).padStart(2, '0'), 30, 26);
-  pip(48, 122, 16);
+  function pip2(cx, cy, r) {
+    x.beginPath();
+    x.moveTo(cx, cy - r);
+    x.lineTo(cx + r * 0.7, cy);
+    x.lineTo(cx, cy + r);
+    x.lineTo(cx - r * 0.7, cy);
+    x.closePath();
+    x.fill();
+  }
+  pip2(48, 122, 16);
   x.restore();
 
   return new THREE.CanvasTexture(c);
 }
 
-// createFrames returns { frames, haloGroup }
+// createFrames returns { frames, haloGroup }.
 // Rotate haloGroup.rotation.y to spin the ring.
-export function createFrames(scene) {
+export function createFrames(scene, cardBackStyle = 'geometric') {
   const loader = new THREE.TextureLoader();
   const frames = [];
 
@@ -228,7 +359,7 @@ export function createFrames(scene) {
     ),
   ].slice(0, CARD_TOTAL);
 
-  const backTex = buildCardBackTexture(); // shared by all back faces
+  const backTex = buildCardBackTexture(cardBackStyle);
 
   const W = 3.2;
   const H = W * 1.4;
@@ -248,7 +379,6 @@ export function createFrames(scene) {
     );
     shadow.position.set(0.18, -0.22, -0.06);
 
-    // DoubleSide so the border outline appears from both front and back
     const border = new THREE.Mesh(
       new THREE.PlaneGeometry(W + 0.06, H + 0.06),
       new THREE.MeshBasicMaterial({ color: 0x1a1410, side: THREE.DoubleSide })
@@ -267,7 +397,7 @@ export function createFrames(scene) {
     );
     glow.position.z = -0.04;
 
-    // Front face — card face, FrontSide (visible when card faces viewer)
+    // Front face — card artwork, FrontSide (visible when facing viewer)
     const frontTex = isPlaceholder
       ? backTex
       : (p.image ? loader.load(p.image) : buildCardTexture(p, i));
@@ -277,7 +407,7 @@ export function createFrames(scene) {
     );
     card.position.z = 0.01;
 
-    // Back face — card back, rotated 180° around Y so it faces the opposite direction
+    // Back face — card back design, faces the opposite direction
     const back = new THREE.Mesh(
       new THREE.PlaneGeometry(W, H),
       new THREE.MeshBasicMaterial({ map: backTex })
@@ -288,12 +418,12 @@ export function createFrames(scene) {
     grp.add(shadow, glow, border, back, card);
     grp.userData = {
       pic:         card,
+      back,                          // stored so SceneManager can swap back texture
       glow,
       index:       i,
-      baseY:       14,  // starts off-screen above; animated to 0 during intro
+      baseY:       14,               // starts off-screen above; animated to 0 during intro
       ph:          i * 2.1,
       placeholder: isPlaceholder,
-      // Ring position — used by SceneManager intro animation to restore card after flight
       ringX:       RING_R * Math.sin(θ),
       ringZ:       RING_R * Math.cos(θ),
       ringRotY:    θ,
@@ -318,7 +448,6 @@ export function createFrames(scene) {
 export function tickFrames(frames, t, hover, focused, lerp) {
   frames.forEach((f, i) => {
     const u = f.userData;
-    // Gentle vertical bob only — ring position fixes x/z
     f.position.y = u.baseY + Math.sin(t * 0.4 + u.ph) * 0.08;
     const targetOpacity = i === hover || i === focused ? 0.5 : 0;
     u.glow.material.opacity = lerp(u.glow.material.opacity, targetOpacity, 0.08);
