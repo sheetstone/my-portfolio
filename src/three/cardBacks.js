@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { canvasTex } from './cardTextures.js';
 
 export const CARD_BACK_STYLES = [
+  { id: 'gerbe',     label: 'La Gerbe',    color: '#2d7a3a' },
   { id: 'geometric', label: 'Géométrique', color: '#1b3fd4' },
   { id: 'icarus',    label: 'Icare',       color: '#0d1f5c' },
   { id: 'arbre',     label: 'Arbre',       color: '#c4006e' },
-  { id: 'gerbe',     label: 'La Gerbe',    color: '#2d7a3a' },
 ];
 
 // Geometric: bold triangle tessellation after Matisse *Poster Design* 1952
@@ -208,11 +208,12 @@ function buildStyleGerbe() {
 }
 
 // Public factory — call this from SceneManager when switching styles
-export function buildCardBackTexture(style = 'geometric') {
+export function buildCardBackTexture(style = 'gerbe') {
   switch (style) {
     case 'icarus':  return buildStyleIcarus();
     case 'arbre':   return buildStyleArbre();
     case 'gerbe':   return buildStyleGerbe();
-    default:        return buildStyleGeometric();
+    case 'geometric': return buildStyleGeometric();
+    default:        return buildStyleGerbe();
   }
 }

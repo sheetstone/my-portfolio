@@ -8,7 +8,7 @@ const        CARD_TOTAL = 12;
 
 // createFrames returns { frames, haloGroup }.
 // Rotate haloGroup.rotation.y to spin the ring.
-export function createFrames(scene, cardBackStyle = 'geometric') {
+export function createFrames(scene, cardBackStyle = 'gerbe') {
   const loader = new THREE.TextureLoader();
   const frames = [];
 
