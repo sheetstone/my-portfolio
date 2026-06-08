@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { DEFAULT_CONFIG } from '../three/shapes.js';
-import { CARD_BACK_STYLES } from '../three/frames.js';
+import { CARD_BACK_STYLES } from '../three/cardBacks.js';
 import './ShapeControls.css';
 
 const LAYER_LABELS = { far: 'Far (background)', mid: 'Mid', near: 'Near (foreground)' };

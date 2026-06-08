@@ -1,27 +1,9 @@
 import * as THREE from 'three';
 import { BG_VERT, BG_FRAG } from './shaders.js';
 import { DEFAULT_CONFIG, createMovers, destroyMovers, tickMovers } from './shapes.js';
-import { RING_R, createFrames, tickFrames, buildCardBackTexture } from './frames.js';
-
-// Shortest signed angle from `from` to `to` in radians, result in (-π, π]
-function shortestAngle(from, to) {
-  let diff = to - from;
-  diff -= Math.PI * 2 * Math.round(diff / (Math.PI * 2));
-  return diff;
-}
-
-// Easing functions
-function easeOutCubic(t) {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return 1 - Math.pow(1 - t, 3);
-}
-function easeOutBack(t) {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  const c1 = 1.70158;
-  return 1 + (c1 + 1) * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-}
+import { RING_R, createFrames, tickFrames } from './frames.js';
+import { buildCardBackTexture } from './cardBacks.js';
+import { shortestAngle, easeOutCubic, easeOutBack } from './utils.js';
 
 const DEFAULT_CAM_Z = RING_R + 16;
 const FOCUS_CAM_Z   = RING_R + 5;
@@ -48,6 +30,7 @@ export class SceneManager {
     this._hoveredShape = null;
     this._isTouch = false;
     this._velHistory = []; // [{dx, t}] — recent per-event deltas for momentum
+    this._haloSettled = false; // true once ring settle has been triggered
 
     this._tick = this._tick.bind(this);
     this._init();
@@ -276,6 +259,13 @@ export class SceneManager {
       const p = Math.max(0, Math.min(1, (introT - i * stagger) / cardDur));
       if (p < 1) allDone = false;
 
+      // As soon as card 0 lands, start the ring settling — don't wait for all 12
+      if (i === 0 && p >= 1 && !this._haloSettled) {
+        this._haloSettled = true;
+        const step = (Math.PI * 2) / this.frames.length;
+        this.haloWant = -step * 1.5;
+      }
+
       const { ringX, ringZ, ringRotY } = f.userData;
 
       // x/z follow cubic ease (decelerates into ring position)
@@ -324,6 +314,9 @@ export class SceneManager {
   unfocus() {
     this.focused = -1;
     this.camWant.z = DEFAULT_CAM_Z;
+    // Return ring to the centred 4-card view
+    const step = (Math.PI * 2) / this.frames.length;
+    this.haloWant = this.haloState + shortestAngle(this.haloState, -step * 1.5);
     this.onFocusChange?.(-1);
   }
 
@@ -349,8 +342,8 @@ export class SceneManager {
     this._tickIntro(t);
     tickFrames(this.frames, t, this.hover, this.focused, this._lerp.bind(this));
 
-    // Higher lerp factor during active touch drag — ring tracks finger tightly
-    const haloLerp = (this._down && this._isTouch) ? 0.28 : 0.07;
+    // Touch drag: tight tracking; otherwise: snappy enough to feel connected, smooth enough to look good
+    const haloLerp = (this._down && this._isTouch) ? 0.28 : 0.10;
     this.haloState = this._lerp(this.haloState, this.haloWant, haloLerp);
     this.haloGroup.rotation.y = this.haloState;
 
