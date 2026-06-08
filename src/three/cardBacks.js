@@ -1,9 +1,11 @@
+import * as THREE from 'three';
 import { canvasTex } from './cardTextures.js';
 
 export const CARD_BACK_STYLES = [
   { id: 'geometric', label: 'Géométrique', color: '#1b3fd4' },
   { id: 'icarus',    label: 'Icare',       color: '#0d1f5c' },
   { id: 'arbre',     label: 'Arbre',       color: '#c4006e' },
+  { id: 'gerbe',     label: 'La Gerbe',    color: '#2d7a3a' },
 ];
 
 // Geometric: bold triangle tessellation after Matisse *Poster Design* 1952
@@ -127,13 +129,13 @@ function buildStyleIcarus() {
   return canvasTex(c);
 }
 
-// Arbre: magenta field + white organic branching form after *Arbre de neige* 1947
+// Arbre: pink field + white organic branching form after *Arbre de neige* 1947
 function buildStyleArbre() {
   const c = document.createElement('canvas');
   c.width = 640; c.height = 896;
   const x = c.getContext('2d');
 
-  x.fillStyle = '#c4006e';
+  x.fillStyle = '#d4408a';   // tinted warmer pink (was #c4006e)
   x.fillRect(0, 0, 640, 896);
 
   x.fillStyle   = '#f5f2eb';
@@ -141,46 +143,50 @@ function buildStyleArbre() {
   x.lineCap     = 'round';
   x.lineJoin    = 'round';
 
+  // Central trunk
   x.lineWidth = 50;
   x.beginPath();
   x.moveTo(322, 865);
   x.bezierCurveTo(318, 720, 326, 540, 320, 185);
   x.stroke();
 
-  for (const [startX, startY, cpX, cpY, endX, endY, w] of [
-    [308, 745, 215, 660, 132, 565, 32],
-    [308, 635, 185, 535,  95, 425, 28],
-    [312, 525, 195, 428, 110, 325, 24],
-    [314, 418, 205, 343, 138, 250, 22],
-    [316, 318, 228, 268, 165, 195, 18],
+  // Branches use two control points so they droop outward before sweeping up
+  // [startX, startY, cp1X, cp1Y, cp2X, cp2Y, endX, endY, lineWidth]
+  for (const [sx, sy, c1x, c1y, c2x, c2y, ex, ey, w] of [
+    [308, 745, 228, 792,  98, 632, 132, 565, 32],
+    [308, 635, 218, 682,  78, 502,  95, 425, 28],
+    [312, 525, 212, 572,  82, 415, 110, 325, 24],
+    [314, 418, 222, 458, 112, 330, 138, 250, 22],
+    [316, 318, 248, 348, 148, 248, 165, 195, 18],
   ]) {
     x.lineWidth = w;
     x.beginPath();
-    x.moveTo(startX, startY);
-    x.quadraticCurveTo(cpX, cpY, endX, endY);
+    x.moveTo(sx, sy);
+    x.bezierCurveTo(c1x, c1y, c2x, c2y, ex, ey);
     x.stroke();
     x.beginPath();
-    x.arc(endX, endY, w * 0.72, 0, Math.PI * 2);
+    x.arc(ex, ey, w * 0.72, 0, Math.PI * 2);
     x.fill();
   }
 
-  for (const [startX, startY, cpX, cpY, endX, endY, w] of [
-    [334, 720, 425, 638, 508, 545, 32],
-    [336, 608, 435, 510, 525, 405, 28],
-    [332, 498, 422, 412, 512, 318, 24],
-    [328, 398, 415, 335, 482, 250, 22],
-    [324, 302, 402, 260, 452, 190, 18],
+  for (const [sx, sy, c1x, c1y, c2x, c2y, ex, ey, w] of [
+    [334, 720, 402, 778, 542, 622, 508, 545, 32],
+    [336, 608, 398, 660, 552, 488, 525, 405, 28],
+    [332, 498, 392, 548, 542, 392, 512, 318, 24],
+    [328, 398, 384, 444, 512, 322, 482, 250, 22],
+    [324, 302, 372, 338, 468, 238, 452, 190, 18],
   ]) {
     x.lineWidth = w;
     x.beginPath();
-    x.moveTo(startX, startY);
-    x.quadraticCurveTo(cpX, cpY, endX, endY);
+    x.moveTo(sx, sy);
+    x.bezierCurveTo(c1x, c1y, c2x, c2y, ex, ey);
     x.stroke();
     x.beginPath();
-    x.arc(endX, endY, w * 0.72, 0, Math.PI * 2);
+    x.arc(ex, ey, w * 0.72, 0, Math.PI * 2);
     x.fill();
   }
 
+  // Crown tip
   x.beginPath();
   x.arc(320, 165, 28, 0, Math.PI * 2);
   x.fill();
@@ -194,11 +200,19 @@ function buildStyleArbre() {
   return canvasTex(c);
 }
 
+// La Gerbe: loads the Matisse card-back photograph from public/cardback/
+function buildStyleGerbe() {
+  const tex = new THREE.TextureLoader().load('/cardback/martise_card_back.png');
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // Public factory — call this from SceneManager when switching styles
 export function buildCardBackTexture(style = 'geometric') {
   switch (style) {
     case 'icarus':  return buildStyleIcarus();
     case 'arbre':   return buildStyleArbre();
+    case 'gerbe':   return buildStyleGerbe();
     default:        return buildStyleGeometric();
   }
 }

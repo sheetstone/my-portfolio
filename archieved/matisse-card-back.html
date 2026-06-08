@@ -1,0 +1,86 @@
+<!--
+  MATISSE CARD BACK — flat papiers-découpés pattern (Three.js)
+  -----------------------------------------------------------
+  An orthographic (perfectly flat) warm-white card scattered with cut-out fronds, leaves and berries,
+  clipped at the card edge so shapes bleed off like the reference. Drop-in as the face-down back of the deck.
+
+  ===> Tweak the look with the knobs just below (palette, density, card aspect, seed).
+       Re-run with a new SEED for a fresh arrangement you like, then lock it in.
+-->
+<style>
+  html,body{margin:0;height:100%;background:#e7e4dc;overflow:hidden;}
+  canvas{display:block;}
+</style>
+<div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ----------------------------- knobs ----------------------------- */
+const SEED   = 7;                 // change for a different scatter
+const CARD   = { w:5, h:7, radius:0.28 };         // portrait card (≈5:7 like the reference)
+const COLS=4, ROWS=6;             // big-shape grid density
+const DOTS  = 40;                 // number of little "berries"
+const PALETTE   = [0xe5388a,0xff6aa6,0x2f9e3f,0x8ccf5a,0x1c54cf,0xf2c20d,0xe5371f,0xf07d18];
+const DOT_COLORS= [0x1c54cf,0xe5371f,0x2f9e3f,0xf2c20d,0xe5388a];
+/* ---------------------------------------------------------------- */
+
+const app=document.getElementById('app');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xe7e4dc);
+const cam=new THREE.OrthographicCamera(-1,1,1,-1,0.1,100); cam.position.z=10;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(innerWidth,innerHeight);
+renderer.localClippingEnabled=true; app.appendChild(renderer.domElement);
+
+function setCam(){const a=innerWidth/innerHeight,vh=CARD.h*1.16;cam.top=vh/2;cam.bottom=-vh/2;cam.left=-vh*a/2;cam.right=vh*a/2;cam.updateProjectionMatrix();}
+setCam();
+
+/* clip to the card bleed (inset a hair so rounded corners stay clean) */
+const ix=CARD.w/2-0.06, iy=CARD.h/2-0.06;
+const CLIP=[new THREE.Plane(new THREE.Vector3( 1,0,0),ix),new THREE.Plane(new THREE.Vector3(-1,0,0),ix),
+            new THREE.Plane(new THREE.Vector3(0, 1,0),iy),new THREE.Plane(new THREE.Vector3(0,-1,0),iy)];
+
+/* ---- soft drop shadow + rounded white card ---- */
+function roundedRect(w,h,r){const s=new THREE.Shape();const x=-w/2,y=-h/2;
+  s.moveTo(x+r,y);s.lineTo(x+w-r,y);s.quadraticCurveTo(x+w,y,x+w,y+r);s.lineTo(x+w,y+h-r);s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  s.lineTo(x+r,y+h);s.quadraticCurveTo(x,y+h,x,y+h-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);return new THREE.ShapeGeometry(s);}
+const shTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const x=c.getContext('2d');const g=x.createRadialGradient(128,128,40,128,128,128);g.addColorStop(0,'rgba(0,0,0,.34)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,256,256);return new THREE.CanvasTexture(c);})();
+const shadow=new THREE.Mesh(new THREE.PlaneGeometry(CARD.w*1.35,CARD.h*1.28),new THREE.MeshBasicMaterial({map:shTex,transparent:true,opacity:.5,depthTest:false}));
+shadow.position.set(.12,-.18,-1);shadow.renderOrder=-2;scene.add(shadow);
+const cardBg=new THREE.Mesh(roundedRect(CARD.w,CARD.h,CARD.radius),new THREE.MeshBasicMaterial({color:0xfbf8f1,depthTest:false,transparent:true}));
+cardBg.renderOrder=-1;scene.add(cardBg);
+
+/* ---- shape generators (hand-cut wobble) ---- */
+function mulberry(s){return function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const rnd=mulberry(SEED);
+function geo(type,R,seed){const r2=mulberry(seed),N=84,pts=[];const h1=r2()*6.28,h2=r2()*6.28;
+  for(let i=0;i<N;i++){const a=i/N*6.283;let r=R,sx=1,sy=1;
+    if(type==='frond'){r=R*(0.42+0.58*Math.abs(Math.sin(a*5+h1)));sy=1.5;sx=0.6;}
+    else if(type==='leaf'){r=R*(1+0.32*Math.sin(2*a+h1));sy=1.6;sx=0.7;}
+    else if(type==='drop'){r=R*(0.7+0.3*Math.sin(a+h1));sy=1.7;sx=0.62;}
+    else {r=R*(1+0.10*Math.sin(3*a+h1));}                                  // dot/berry
+    r+=R*0.05*Math.sin(a*3+h2);
+    pts.push(new THREE.Vector2(Math.cos(a)*r*sx,Math.sin(a)*r*sy));}
+  const g=new THREE.ShapeGeometry(new THREE.Shape(pts));g.center();return g;}
+
+let ro=0;
+function add(g,color,x,y,rot,scale){const m=new THREE.MeshBasicMaterial({color,clippingPlanes:CLIP,depthTest:false,transparent:true});
+  const mesh=new THREE.Mesh(g,m);mesh.position.set(x,y,0.01);mesh.rotation.z=rot;mesh.scale.setScalar(scale);mesh.renderOrder=ro++;scene.add(mesh);}
+
+/* ---- scatter big shapes on a jittered grid ---- */
+const cw=CARD.w/COLS, ch=CARD.h/ROWS;
+let s=10;
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+  const cx=-CARD.w/2+cw*(c+0.5)+(rnd()-0.5)*cw*0.7;
+  const cy=-CARD.h/2+ch*(r+0.5)+(rnd()-0.5)*ch*0.7;
+  const t=rnd(); const type=t<0.55?'frond':t<0.8?'leaf':'drop';
+  const R=Math.min(cw,ch)*(0.55+rnd()*0.35);
+  add(geo(type,R,s++),PALETTE[(s*3)%PALETTE.length],cx,cy,rnd()*6.28,1);
+}
+/* ---- scatter little berries on top ---- */
+for(let i=0;i<DOTS;i++){
+  const x=(rnd()-0.5)*CARD.w, y=(rnd()-0.5)*CARD.h, R=0.10+rnd()*0.12;
+  add(geo('dot',R,s++),DOT_COLORS[(s*5)%DOT_COLORS.length],x,y,rnd()*6.28,1);
+}
+
+renderer.render(scene,cam);
+addEventListener('resize',()=>{setCam();renderer.setSize(innerWidth,innerHeight);renderer.render(scene,cam);});
+</script>
