@@ -3,4 +3,5 @@
   position: fixed;
   inset: 0;
   display: block;
+  touch-action: none; /* give the app full ownership of touch gestures */
 }

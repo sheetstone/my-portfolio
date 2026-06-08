@@ -46,6 +46,8 @@ export class SceneManager {
     this._down = null;
     this._moved = false;
     this._hoveredShape = null;
+    this._isTouch = false;
+    this._velHistory = []; // [{dx, t}] — recent per-event deltas for momentum
 
     this._tick = this._tick.bind(this);
     this._init();
@@ -119,40 +121,66 @@ export class SceneManager {
     this._onPointerDown = (e) => {
       this._down = { x: e.clientX, y: e.clientY };
       this._moved = false;
+      this._isTouch = e.pointerType === 'touch';
+      this._velHistory = [];
     };
 
     this._onPointerUp = () => {
-      // Snap halo to nearest card slot after a drag (not a tap)
       if (this._moved && this.focused < 0) {
         const step = (Math.PI * 2) / this.frames.length;
-        this.haloWant = Math.round(this.haloState / step) * step;
+
+        if (this._isTouch && this._velHistory.length >= 2) {
+          // Compute px/s velocity from the last few events
+          const window = this._velHistory.slice(-5);
+          const totalDx = window.reduce((s, h) => s + h.dx, 0);
+          const totalDt = window[window.length - 1].t - window[0].t;
+          const velPxPerSec = totalDt > 0 ? (totalDx / totalDt) * 1000 : 0;
+
+          // Convert to halo angle momentum (same sign convention as drag)
+          const momentumAngle = this.haloState + velPxPerSec * 0.004 * 0.18;
+          this.haloWant = Math.round(momentumAngle / step) * step;
+        } else {
+          this.haloWant = Math.round(this.haloState / step) * step;
+        }
       }
       this._down = null;
+      this._isTouch = false;
     };
 
     this._onPointerMove = (e) => {
       this.rawMX = e.clientX;
       this.rawMY = e.clientY;
-      this.parT.x = -((e.clientX / window.innerWidth)  - 0.5) * 1.8;
-      this.parT.y =  ((e.clientY / window.innerHeight) - 0.5) * 1.3;
+
+      // Parallax is a mouse-hover effect — skip for touch (no hover concept)
+      if (e.pointerType !== 'touch') {
+        this.parT.x = -((e.clientX / window.innerWidth)  - 0.5) * 1.8;
+        this.parT.y =  ((e.clientY / window.innerHeight) - 0.5) * 1.3;
+      }
 
       if (this._down) {
-        const dx = Math.abs(e.clientX - this._down.x);
-        const dy = Math.abs(e.clientY - this._down.y);
-        if (dx + dy > 4) this._moved = true;
+        const deltaX = e.clientX - this._down.x;
+        const deltaY = e.clientY - this._down.y;
+        if (Math.abs(deltaX) + Math.abs(deltaY) > 4) this._moved = true;
+
+        // Record per-event delta for momentum calculation on touch lift
+        if (e.pointerType === 'touch') {
+          this._velHistory.push({ dx: deltaX, t: performance.now() });
+          if (this._velHistory.length > 8) this._velHistory.shift();
+        }
 
         // Lock halo and tilt while intro animation is running
         if (this.focused < 0 && this._introDelay === null) {
-          // Touch swipe: natural direction (swipe right → ring goes right)
-          // Mouse drag: inverted (drag right → ring turns left, like grabbing)
+          // Touch: swipe right → ring right (natural); mouse: drag right → ring left (grab)
           const haloDir = e.pointerType === 'touch' ? 1 : -1;
-          this.haloWant += haloDir * (e.clientX - this._down.x) * 0.004;
+          this.haloWant += haloDir * deltaX * 0.004;
 
-          // Vertical drag → tilt camera (springs back on release)
-          const tiltDir = e.pointerType === 'touch' ? -1 : 1;
-          this.tiltWant = Math.max(-4, Math.min(4,
-            this.tiltWant + tiltDir * (e.clientY - this._down.y) * 0.003
-          ));
+          // Tilt is desktop-only — accidental vertical thumb arc on mobile
+          // would accumulate unwanted tilt, so skip it for touch
+          if (e.pointerType !== 'touch') {
+            this.tiltWant = Math.max(-4, Math.min(4,
+              this.tiltWant + deltaY * 0.003
+            ));
+          }
         }
 
         this._down = { x: e.clientX, y: e.clientY };
@@ -321,7 +349,9 @@ export class SceneManager {
     this._tickIntro(t);
     tickFrames(this.frames, t, this.hover, this.focused, this._lerp.bind(this));
 
-    this.haloState = this._lerp(this.haloState, this.haloWant, 0.07);
+    // Higher lerp factor during active touch drag — ring tracks finger tightly
+    const haloLerp = (this._down && this._isTouch) ? 0.28 : 0.07;
+    this.haloState = this._lerp(this.haloState, this.haloWant, haloLerp);
     this.haloGroup.rotation.y = this.haloState;
 
     this.camState.x = this._lerp(this.camState.x, this.camWant.x, 0.06);
