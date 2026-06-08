@@ -216,6 +216,111 @@ function buildStyleArbre() {
   return new THREE.CanvasTexture(c);
 }
 
+// About Me card — monogram portrait, distinct from project cards
+function buildAboutCardTexture(p) {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 896;
+  const x = c.getContext('2d');
+
+  x.fillStyle = '#faf8f2';
+  x.fillRect(0, 0, 640, 896);
+
+  x.strokeStyle = '#1a1410';
+  x.lineWidth = 10;
+  x.strokeRect(6, 6, 628, 884);
+  x.lineWidth = 2.5;
+  x.strokeRect(22, 22, 596, 852);
+
+  function pip(cx, cy, r) {
+    x.beginPath();
+    x.moveTo(cx, cy - r); x.lineTo(cx + r * 0.7, cy);
+    x.lineTo(cx, cy + r); x.lineTo(cx - r * 0.7, cy);
+    x.closePath(); x.fill();
+  }
+
+  // Top-left corner: monogram initials + pip
+  x.fillStyle = p.accent;
+  x.font = 'bold 52px "Bricolage Grotesque", sans-serif';
+  x.textBaseline = 'top';
+  x.textAlign = 'left';
+  x.fillText('HZ', 32, 28);
+  pip(50, 112, 14);
+
+  // Portrait panel — accent background
+  const panelTop = 148, panelH = 346;
+  x.fillStyle = p.accent;
+  x.fillRect(44, panelTop, 552, panelH);
+
+  // Silhouette — head, neck, shoulders in cream
+  x.save();
+  x.beginPath();
+  x.rect(44, panelTop, 552, panelH);
+  x.clip();
+
+  x.fillStyle = '#faf8f2';
+  // Head
+  x.beginPath();
+  x.ellipse(320, 280, 76, 90, 0, 0, Math.PI * 2);
+  x.fill();
+  // Neck
+  x.fillRect(296, 362, 48, 66);
+  // Shoulders — fan out from neck base to panel bottom edges
+  x.beginPath();
+  x.moveTo(296, 428);
+  x.bezierCurveTo(270, 432, 130, 480, 44, 510);
+  x.lineTo(44, 510); x.lineTo(44, 520); x.lineTo(596, 520);
+  x.bezierCurveTo(510, 480, 370, 432, 344, 428);
+  x.closePath();
+  x.fill();
+  x.restore();
+
+  // Separator
+  x.strokeStyle = '#1a1410';
+  x.globalAlpha = 0.1;
+  x.lineWidth = 1;
+  x.beginPath(); x.moveTo(44, 550); x.lineTo(596, 550); x.stroke();
+  x.globalAlpha = 1;
+
+  // Name
+  x.fillStyle = '#1a1410';
+  x.font = 'bold 42px "Bricolage Grotesque", sans-serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText('Hong Zhang', 320, 592);
+
+  // Role
+  x.fillStyle = p.accent;
+  x.font = '700 20px "Bricolage Grotesque", sans-serif';
+  x.fillText('Full-Stack Developer', 320, 638);
+
+  // Thin rule before skills
+  x.strokeStyle = p.accent;
+  x.globalAlpha = 0.3;
+  x.lineWidth = 1;
+  x.beginPath(); x.moveTo(120, 666); x.lineTo(520, 666); x.stroke();
+  x.globalAlpha = 1;
+
+  // Skills
+  x.fillStyle = '#7a6858';
+  x.font = '15px "Bricolage Grotesque", sans-serif';
+  x.fillText('React  ·  Three.js  ·  Node.js', 320, 694);
+  x.fillText('Firebase  ·  Python  ·  AI', 320, 720);
+
+  // Bottom corner (rotated 180°)
+  x.save();
+  x.translate(640, 896);
+  x.rotate(Math.PI);
+  x.fillStyle = p.accent;
+  x.font = 'bold 52px "Bricolage Grotesque", sans-serif';
+  x.textBaseline = 'top';
+  x.textAlign = 'left';
+  x.fillText('HZ', 32, 28);
+  pip(50, 112, 14);
+  x.restore();
+
+  return new THREE.CanvasTexture(c);
+}
+
 // Public factory — call this from SceneManager when switching styles
 export function buildCardBackTexture(style = 'geometric') {
   switch (style) {
@@ -398,9 +503,10 @@ export function createFrames(scene, cardBackStyle = 'geometric') {
     glow.position.z = -0.04;
 
     // Front face — card artwork, FrontSide (visible when facing viewer)
-    const frontTex = isPlaceholder
-      ? backTex
-      : (p.image ? loader.load(p.image) : buildCardTexture(p, i));
+    const frontTex = isPlaceholder     ? backTex
+      : p.type === 'about'             ? buildAboutCardTexture(p)
+      : p.image                        ? loader.load(p.image)
+      :                                  buildCardTexture(p, i);
     const card = new THREE.Mesh(
       new THREE.PlaneGeometry(W, H),
       new THREE.MeshBasicMaterial({ map: frontTex })
@@ -439,6 +545,14 @@ export function createFrames(scene, cardBackStyle = 'geometric') {
         card.material.needsUpdate = true;
       };
       img.src = p.screenshot;
+    }
+
+    if (p.type === 'about') {
+      // Rebuild after web fonts are loaded so text renders with the right typeface
+      document.fonts.ready.then(() => {
+        card.material.map = buildAboutCardTexture(p);
+        card.material.needsUpdate = true;
+      });
     }
   });
 

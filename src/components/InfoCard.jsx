@@ -1,7 +1,10 @@
 import './InfoCard.css';
 
 export default function InfoCard({ project, index, total, onBack }) {
-  const show = project !== null && project !== undefined;
+  const show    = project !== null && project !== undefined;
+  const isAbout = project?.type === 'about';
+  // Total shown in counter excludes the About card (always last)
+  const projectCount = total - 1;
 
   return (
     <div
@@ -17,26 +20,59 @@ export default function InfoCard({ project, index, total, onBack }) {
 
       <div className="idx">
         {show
-          ? `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`
+          ? isAbout
+            ? 'ABOUT ME'
+            : `${String(index + 1).padStart(2, '0')} / ${String(projectCount).padStart(2, '0')}`
           : ''}
       </div>
 
       <h2>{project?.title ?? ''}</h2>
-      <p>{project?.subtitle ?? ''}</p>
 
-      <div className="row">
-        {show && (
-          <a
-            className="btn visit"
-            href={project.url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Visit site ↗
-          </a>
-        )}
-        <button className="btn back" onClick={onBack}>Back</button>
-      </div>
+      {isAbout ? (
+        <>
+          <p className="role">{project.role}</p>
+          <p>{project.bio}</p>
+          <div className="skills">
+            {project.skills.map(s => (
+              <span key={s} className="skill">{s}</span>
+            ))}
+          </div>
+          <div className="row">
+            <a
+              className="btn visit"
+              href={project.links.github}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub ↗
+            </a>
+            <a
+              className="btn email"
+              href={project.links.email}
+            >
+              Email ↗
+            </a>
+            <button className="btn back" onClick={onBack}>Back</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>{project?.subtitle ?? ''}</p>
+          <div className="row">
+            {show && (
+              <a
+                className="btn visit"
+                href={project.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Visit site ↗
+              </a>
+            )}
+            <button className="btn back" onClick={onBack}>Back</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

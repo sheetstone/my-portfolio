@@ -1,3 +1,16 @@
+export const ABOUT = {
+  type:   'about',
+  title:  'Hong Zhang',
+  role:   'Full-Stack Developer',
+  bio:    'I build web experiences that blend thoughtful design with modern AI — from restaurant menus to ancient divination, always with craft.',
+  skills: ['React', 'Three.js', 'Node.js', 'Firebase', 'Python', 'AI / ML'],
+  links: {
+    github: 'https://github.com/sheetstone',
+    email:  'mailto:sheetstone@gmail.com',
+  },
+  accent: '#6d5b98',
+};
+
 export const PROJECTS = [
   {
     title: 'Restaurant Menu',
@@ -26,4 +39,5 @@ export const PROJECTS = [
     screenshot: '/screenshots/airoleplayer.png',
     accent: '#7eb8f7',
   },
+  ABOUT,
 ];
