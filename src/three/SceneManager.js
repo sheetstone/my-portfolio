@@ -143,12 +143,15 @@ export class SceneManager {
 
         // Lock halo and tilt while intro animation is running
         if (this.focused < 0 && this._introDelay === null) {
-          // Horizontal drag → spin halo
-          this.haloWant -= (e.clientX - this._down.x) * 0.004;
+          // Touch swipe: natural direction (swipe right → ring goes right)
+          // Mouse drag: inverted (drag right → ring turns left, like grabbing)
+          const haloDir = e.pointerType === 'touch' ? 1 : -1;
+          this.haloWant += haloDir * (e.clientX - this._down.x) * 0.004;
 
           // Vertical drag → tilt camera (springs back on release)
+          const tiltDir = e.pointerType === 'touch' ? -1 : 1;
           this.tiltWant = Math.max(-4, Math.min(4,
-            this.tiltWant + (e.clientY - this._down.y) * 0.003
+            this.tiltWant + tiltDir * (e.clientY - this._down.y) * 0.003
           ));
         }
 
