@@ -1,3 +1,7 @@
+@media (max-width: 640px) {
+  .sc-panel { display: none; }
+}
+
 .sc-panel {
   position: fixed;
   z-index: 10;

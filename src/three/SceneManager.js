@@ -31,6 +31,8 @@ export class SceneManager {
     this._isTouch = false;
     this._velHistory = []; // [{dx, t}] — recent per-event deltas for momentum
     this._haloSettled = false; // true once ring settle has been triggered
+    this._activePointers = new Set(); // tracks live pointer IDs for pinch detection
+    this._lastPinch = null; // last two-finger distance for pinch zoom
 
     this._tick = this._tick.bind(this);
     this._init();
@@ -48,14 +50,15 @@ export class SceneManager {
     );
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, canvas: this.canvas });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    const isMobile = window.innerWidth < 640;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.0 : 1.75));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
     this._createBackground();
     this.shapeConfig = { ...DEFAULT_CONFIG,
-      far:  { ...DEFAULT_CONFIG.far  },
-      mid:  { ...DEFAULT_CONFIG.mid  },
-      near: { ...DEFAULT_CONFIG.near },
+      far:  { ...DEFAULT_CONFIG.far,  n: isMobile ? 4 : DEFAULT_CONFIG.far.n  },
+      mid:  { ...DEFAULT_CONFIG.mid,  n: isMobile ? 7 : DEFAULT_CONFIG.mid.n  },
+      near: { ...DEFAULT_CONFIG.near, n: isMobile ? 3 : DEFAULT_CONFIG.near.n },
     };
     this.movers = createMovers(this.scene, this.shapeConfig);
 
@@ -102,13 +105,16 @@ export class SceneManager {
     const el = this.renderer.domElement;
 
     this._onPointerDown = (e) => {
+      this._activePointers.add(e.pointerId);
       this._down = { x: e.clientX, y: e.clientY };
       this._moved = false;
       this._isTouch = e.pointerType === 'touch';
       this._velHistory = [];
     };
 
-    this._onPointerUp = () => {
+    this._onPointerUp = (e) => {
+      this._activePointers.delete(e.pointerId);
+      if (this._activePointers.size < 2) this._lastPinch = null;
       if (this._moved && this.focused < 0) {
         const step = (Math.PI * 2) / this.frames.length;
 
@@ -151,8 +157,8 @@ export class SceneManager {
           if (this._velHistory.length > 8) this._velHistory.shift();
         }
 
-        // Lock halo and tilt while intro animation is running
-        if (this.focused < 0 && this._introDelay === null) {
+        // Lock halo and tilt while intro animation is running; also skip during pinch
+        if (this.focused < 0 && this._introDelay === null && this._activePointers.size < 2) {
           // Touch: swipe right → ring right (natural); mouse: drag right → ring left (grab)
           const haloDir = e.pointerType === 'touch' ? 1 : -1;
           this.haloWant += haloDir * deltaX * 0.004;
@@ -206,11 +212,30 @@ export class SceneManager {
       if (i >= 0) this.focus(i);
     };
 
+    this._onTouchMove = (e) => {
+      if (e.touches.length === 2) {
+        const d = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        if (this._lastPinch !== null) {
+          this.camWant.z = Math.max(
+            RING_R + 4,
+            Math.min(RING_R + 24, this.camWant.z + (this._lastPinch - d) * 0.04)
+          );
+        }
+        this._lastPinch = d;
+      } else {
+        this._lastPinch = null;
+      }
+    };
+
     el.addEventListener('pointerdown', this._onPointerDown);
     window.addEventListener('pointerup', this._onPointerUp);
     window.addEventListener('pointermove', this._onPointerMove);
     el.addEventListener('wheel', this._onWheel, { passive: false });
     el.addEventListener('click', this._onClick);
+    el.addEventListener('touchmove', this._onTouchMove, { passive: true });
   }
 
   _pick(e) {
@@ -400,6 +425,7 @@ export class SceneManager {
     window.removeEventListener('pointermove', this._onPointerMove);
     el.removeEventListener('wheel', this._onWheel);
     el.removeEventListener('click', this._onClick);
+    el.removeEventListener('touchmove', this._onTouchMove);
     this.renderer.dispose();
   }
 }
