@@ -39,5 +39,14 @@ export const PROJECTS = [
     screenshot: '/screenshots/airoleplayer.webp',
     accent: '#7eb8f7',
   },
+  {
+    title: 'MyExpertPay',
+    subtitle:
+      'MyExpertPay — a full-stack payment management portal for ExpertPay account holders, letting users manage bank accounts, child-support cases, recipients, and payment history in one place.',
+    url: 'https://myexpectpay--myexpertpay.us-central1.hosted.app/login',
+    image: null,
+    screenshot: '/screenshots/myexpertpay.webp',
+    accent: '#2ba38f',
+  },
   ABOUT,
 ];

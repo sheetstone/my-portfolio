@@ -103,14 +103,19 @@ export function createFrames(scene, cardBackStyle = 'gerbe') {
         card.material.needsUpdate = true;
       };
       img.onload = apply;
-      img.onerror = () => {
-        // webp not available (dev mode) — fall back to the original format
-        if (p.screenshot.endsWith('.webp')) {
-          img.onerror = null;
-          img.onload = apply;
-          img.src = p.screenshot.replace(/\.webp$/i, '.png');
-        }
-      };
+      if (p.screenshot.endsWith('.webp')) {
+        // dev mode — .webp is only generated at build time, so try the
+        // original source formats in turn until one resolves
+        const base = p.screenshot.replace(/\.webp$/i, '');
+        const fallbacks = ['.png', '.jpg', '.jpeg'].map((ext) => base + ext);
+        const tryNext = () => {
+          const next = fallbacks.shift();
+          if (!next) return;
+          img.onerror = tryNext;
+          img.src = next;
+        };
+        img.onerror = tryNext;
+      }
       img.src = p.screenshot;
     }
 
